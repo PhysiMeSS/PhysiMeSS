@@ -14,36 +14,15 @@ jobs:
         shell: msys2 {0}
         
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     
     - uses: msys2/setup-msys2@v2
       with:
         update: true
-        install: base-devel flex bison gcc make diffutils mingw-w64-x86_64-toolchain mingw-w64-x86_64-ca-certificates
-    
-    - name: Build Virus Macrophage project
-      run: |
-        make virus-macrophage-sample
-        make
-        
-    - name: Run Virus Macrophage cell lines project
-      run: |
-        .\\virus-sample.exe
-        
-    - name: Build PhysiBoSS cell lines project
-      run: |
-        make reset
-        make physiboss-cell-lines-sample
-        make clean
-        make 
-      
-    - name: Run PhysiBoSS cell lines project
-      run: |
-        .\\PhysiBoSS_Cell_Lines.exe
-        
+        install: mingw-w64-x86_64-binutils mingw-w64-x86_64-gcc mingw-w64-x86_64-headers-git mingw-w64-x86_64-gcc-libs mingw-w64-x86_64-libwinpthread-git mingw-w64-x86_64-lapack mingw-w64-x86_64-openblas mingw-w64-x86_64-libxml2 mingw-w64-x86_64-bzip2 mingw-w64-x86_64-python mingw-w64-x86_64-python-zstandard mingw-w64-x86_64-python-cffi make mingw-w64-x86_64-ca-certificates
+
     - name: Build PhysiMeSS project
       run: |
-        make reset
         make physimess-sample
         make clean
         make
@@ -53,4 +32,4 @@ jobs:
         .\\project
         .\\project config\\Fibre_Initialisation\\mymodel_initialisation.xml
         .\\project config\\Cell_Fibre_Mechanics\\mymodel_rotating.xml
-        
+        .\\project config\\Fibre_Degradation\\mymodel_matrix_degradation.xml
