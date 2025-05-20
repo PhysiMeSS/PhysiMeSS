@@ -23,14 +23,14 @@
 	</overall>
 	
 	<parallel>
-		<omp_num_threads>1</omp_num_threads>
+		<omp_num_threads>2</omp_num_threads>
 	</parallel> 
 	
 	<save>
-		<folder>output</folder>  
+		<folder>output/fibre_degradation</folder>  
 
 		<full_data>
-			<interval units="min">360</interval>
+			<interval units="min">1</interval>
 			<enable>true</enable>
 		</full_data>
 		

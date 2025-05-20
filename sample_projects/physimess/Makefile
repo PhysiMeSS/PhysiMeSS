@@ -48,9 +48,9 @@ else
 	endif
 endif
 
-CFLAGS_LINK := $(shell echo $(CFLAGS) | sed -e "s/-fopenmp//g")
-COMPILE_COMMAND := $(CC) $(CFLAGS)  $(EXTRA_FLAGS)
-LINK_COMMAND := $(CC) $(CFLAGS_LINK) $(EXTRA_FLAGS)
+CFLAGS_LINK := CFLAGS_LINK := $(shell echo $(CFLAGS) | sed -e "s/-fopenmp//g")
+COMPILE_COMMAND := $(CC) $(CFLAGS)
+LINK_COMMAND := $(CC) $(CFLAGS_LINK)
 
 BioFVM_OBJECTS := BioFVM_vector.o BioFVM_mesh.o BioFVM_microenvironment.o BioFVM_solvers.o BioFVM_matlab.o \
 BioFVM_utilities.o BioFVM_basic_agent.o BioFVM_MultiCellDS.o BioFVM_agent_container.o 
@@ -66,7 +66,7 @@ PhysiMeSS_OBJECTS := PhysiMeSS.o PhysiMeSS_agent.o PhysiMeSS_fibre.o PhysiMeSS_c
 
 # put your custom objects here (they should be in the custom_modules directory)
 
-PhysiCell_custom_module_OBJECTS := custom.o 
+PhysiCell_custom_module_OBJECTS := custom.o
 
 pugixml_OBJECTS := pugixml.o
 
@@ -74,12 +74,11 @@ PhysiCell_OBJECTS := $(BioFVM_OBJECTS)  $(pugixml_OBJECTS) $(PhysiCell_core_OBJE
 ALL_OBJECTS := $(PhysiCell_OBJECTS) $(PhysiMeSS_OBJECTS) $(PhysiCell_custom_module_OBJECTS)
 
 # compile the project 
-
 all: main.cpp $(ALL_OBJECTS)
-	$(COMPILE_COMMAND) -o $(PROGRAM_NAME) $(ALL_OBJECTS) main.cpp 
+	$(COMPILE_COMMAND) $(INC) -o $(PROGRAM_NAME) $(ALL_OBJECTS) main.cpp 
 	make name
 
-static: main.cpp $(ALL_OBJECTS) $(MaBoSS)
+static: main.cpp $(ALL_OBJECTS)
 	$(LINK_COMMAND) $(INC) -o $(PROGRAM_NAME) $(ALL_OBJECTS) main.cpp $(LIB) -static-libgcc -static-libstdc++ $(STATIC_OPENMP)
 
 name:
@@ -176,19 +175,21 @@ PhysiCell_basic_signaling.o: ./core/PhysiCell_basic_signaling.cpp
 	
 PhysiCell_geometry.o: ./modules/PhysiCell_geometry.cpp
 	$(COMPILE_COMMAND) -c ./modules/PhysiCell_geometry.cpp 
-	
-# PhysiMeSS
-PhysiMeSS.o: ./addons/PhysiMeSS/PhysiMeSS.cpp 
-	$(COMPILE_COMMAND) -c ./addons/PhysiMeSS/PhysiMeSS.cpp
+
+
+# PhysiMeSS 
 
 PhysiMeSS_agent.o: ./addons/PhysiMeSS/PhysiMeSS_agent.cpp 
 	$(COMPILE_COMMAND) -c ./addons/PhysiMeSS/PhysiMeSS_agent.cpp
 
+PhysiMeSS_cell.o: ./addons/PhysiMeSS/PhysiMeSS_cell.cpp 
+	$(COMPILE_COMMAND) -c ./addons/PhysiMeSS/PhysiMeSS_cell.cpp
+
 PhysiMeSS_fibre.o: ./addons/PhysiMeSS/PhysiMeSS_fibre.cpp 
 	$(COMPILE_COMMAND) -c ./addons/PhysiMeSS/PhysiMeSS_fibre.cpp
 
-PhysiMeSS_cell.o: ./addons/PhysiMeSS/PhysiMeSS_cell.cpp 
-	$(COMPILE_COMMAND) -c ./addons/PhysiMeSS/PhysiMeSS_cell.cpp
+PhysiMeSS.o: ./addons/PhysiMeSS/PhysiMeSS.cpp 
+	$(COMPILE_COMMAND) -c ./addons/PhysiMeSS/PhysiMeSS.cpp
 
 # user-defined PhysiCell modules
 
@@ -208,11 +209,15 @@ reset:
 	cp ./config/PhysiCell_settings-backup.xml ./config/PhysiCell_settings.xml 
 	touch ./config/empty.csv
 	rm -f ./config/mymodel.xml *.csv
-	rm -fr ./config/Cell_Fibre_Mechanics ./config/Fibre_Crosslinks ./config/Fibre_Initialisation ./config/Neighbours_in_voxels ./config/Fibre_Degradation
+	rm -f ./config/paraview_viewer.py
+	rm -f ./config/cells_and_fibres.pvsm
+	rm -f ./config/statevtu.pvsm
+	rm -fr ./config/Cell_Fibre_Mechanics ./config/Cell_Fibre_Mechanics_3D ./config/Fibre_Crosslinks ./config/Fibre_Degradation_3D ./config/Fibre_Initialisation ./config/Neighbours_in_voxels ./config/Fibre_Degradation
 	
 clean:
 	rm -f *.o
 	rm -f $(PROGRAM_NAME)*
+	rm -rf $(VENV_NAME)
 	
 data-cleanup:
 	rm -rf ./output
@@ -243,6 +248,50 @@ unzip:
 untar: 
 	cp ./archives/latest.tar .
 	tar -xzf latest.tar
+
+## For Visualization in paraview:	
+# Configuration
+VENV_NAME = physimessenv
+REQUIRED_PACKAGES = numpy scipy vtk
+PYTHON = python3
+PIP = pip3
+DEFAULT_OUTPUT = "./output"
+# Allow OUTPUT to be overridden by command line argument
+ifdef output
+    OUTPUT = $(output)
+else
+    OUTPUT = $(DEFAULT_OUTPUT)
+endif
+
+# OS detection and commands
+ifeq ($(OS),Windows_NT)
+    SYSTEM = Windows
+    VENV_ACTIVATE = call $(VENV_NAME)\\Scripts\\activate.bat
+    VENV_PYTHON = $(VENV_NAME)\\Scripts\\python.exe
+    VENV_PIP = $(VENV_NAME)\\Scripts\\pip.exe
+    PYTHON_SCRIPT = .\\config\\paraview_viewer.py
+    RUN_COMMAND = $(VENV_ACTIVATE) && echo Running your application in the virtual environment with OUTPUT=$(OUTPUT)... && $(VENV_PYTHON) $(PYTHON_SCRIPT) $(OUTPUT)
+else
+    SYSTEM = $(shell uname -s)
+    VENV_ACTIVATE = . $(VENV_NAME)/bin/activate
+    VENV_PYTHON = $(VENV_NAME)/bin/python
+    VENV_PIP = $(VENV_NAME)/bin/pip
+    PYTHON_SCRIPT = ./config/paraview_viewer.py
+    RUN_COMMAND = $(VENV_ACTIVATE) && echo "Running your application in the virtual environment with OUTPUT=$(OUTPUT)..." && $(VENV_PYTHON) $(PYTHON_SCRIPT) $(OUTPUT)
+endif
+
+vtu:
+	@if [ ! -d "$(VENV_NAME)" ]; then \
+		echo "Creating virtual environment '$(VENV_NAME)'..."; \
+		$(PYTHON) -m venv $(VENV_NAME); \
+		echo "Installing required packages..."; \
+		$(VENV_PIP) install $(REQUIRED_PACKAGES); \
+	else \
+		echo "Virtual environment '$(VENV_NAME)' exists"; \
+		$(VENV_PIP) install --quiet $(REQUIRED_PACKAGES); \
+	fi
+	@$(RUN_COMMAND)
+
 
 # easier animation 
 

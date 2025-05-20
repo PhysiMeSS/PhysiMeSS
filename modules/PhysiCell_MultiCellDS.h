@@ -76,6 +76,7 @@
 #include <vector>
 #include <random>
 #include <chrono>
+#include <algorithm> 
 
 #include "../core/PhysiCell.h"
 #include "../BioFVM/BioFVM_MultiCellDS.h"

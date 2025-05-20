@@ -27,10 +27,10 @@
 	</parallel> 
 	
 	<save>
-		<folder>output</folder>  
+		<folder>output/rotating</folder>  
 
 		<full_data>
-			<interval units="min">360</interval>
+			<interval units="min">1</interval>
 			<enable>true</enable>
 		</full_data>
 		
@@ -248,7 +248,7 @@
             <persistence_time>0.0</persistence_time>
             <migration_bias>0.0</migration_bias>
             <options>
-              <enabled>false</enabled>
+              <enabled>true</enabled>
               <use_2D>true</use_2D>
               <chemotaxis>
                 <enabled>false</enabled>

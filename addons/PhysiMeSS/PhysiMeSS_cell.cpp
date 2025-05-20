@@ -22,45 +22,28 @@ void PhysiMeSS_Cell::deregister_fibre_voxels() {
     return;
 }
 
-
-void PhysiMeSS_Cell::add_potentials_from_fibre(PhysiMeSS_Fibre* pFibre)
-{
-    
+void PhysiMeSS_Cell::add_potentials_from_fibre(PhysiMeSS_Fibre* pFibre) {
     double distance = 0.0;
-    pFibre->nearest_point_on_fibre(position, displacement);
+    std::vector<double> cell_position = this->position;
+    pFibre->nearest_point_on_fibre(cell_position, static_cast<PhysiMeSS_Cell*>(this)->displacement);
     for (int index = 0; index < 3; index++) {
-        distance += displacement[index] * displacement[index];
+        distance += static_cast<PhysiMeSS_Cell*>(this)->displacement[index] * static_cast<PhysiMeSS_Cell*>(this)->displacement[index];
     }
     distance = std::max(sqrt(distance), 0.00001);
-    /*if( this->phenotype.motility.is_motile) {
-        std::cout << " determining distance from " << this->type_name << " " << this->ID << " to "
-                    << (*other_agent).type_name << " " << (*other_agent).ID
-                    << "   the distance is " << distance << std::endl;
-    }*/
-
-    // as per PhysiCell
     static double simple_pressure_scale = 0.027288820670331;
-
-    // check distance relative repulsion and adhesion distances
-    // cell should repel from a fibre if it comes within cell radius plus fibre radius (note fibre radius ~2 micron)
     double R = phenotype.geometry.radius + pFibre->mRadius;
-    // cell should feel adhesion over
+
     double max_interactive_distance =
             phenotype.mechanics.relative_maximum_adhesion_distance * phenotype.geometry.radius +
             pFibre->phenotype.mechanics.relative_maximum_adhesion_distance *
             pFibre->mRadius;
 
-    // First Repulsion as per PhysiCell
     double temp_r = 0;
+   
     if (distance > R) {
         temp_r = 0;
     } else {
-        // temp_r = 1 - distance/R;
-        temp_r = -distance; // -d
-        temp_r /= R; // -d/R
-        temp_r += 1.0; // 1-d/R
-        temp_r *= temp_r; // (1-d/R)^2
-
+        temp_r = std::pow(1-distance/R, 2);
         // add the relative pressure contribution NOT SURE IF NEEDED
         state.simple_pressure += (temp_r / simple_pressure_scale);
 
@@ -68,15 +51,17 @@ void PhysiMeSS_Cell::add_potentials_from_fibre(PhysiMeSS_Fibre* pFibre)
                                             pFibre->phenotype.mechanics.cell_cell_repulsion_strength);
         temp_r *= effective_repulsion;
     }
-
-    if (fabs(temp_r) < 1e-16) { return; }
-    temp_r /= distance;
-
-    axpy(&(velocity), temp_r, displacement);
+  
+    if (fabs(temp_r) > 1e-16) 
+    { //when temp_r is close to 0 we do not correct the cell velocity
+        temp_r /= distance;
+        axpy(&(static_cast<PhysiMeSS_Cell*>(this)->velocity), temp_r, static_cast<PhysiMeSS_Cell*>(this)->displacement); 
+    } 
 
     //Then additional repulsion/adhesion as per Cicely's code
     double fibre_adhesion = 0;
     double fibre_repulsion = 0;
+
     if (distance < max_interactive_distance) {
         const std::vector<double> previous_velocity = get_previous_velocity();
         double cell_velocity_dot_fibre_direction = 0.;
@@ -89,9 +74,9 @@ void PhysiMeSS_Cell::add_potentials_from_fibre(PhysiMeSS_Fibre* pFibre)
         }
         cell_velocity = std::max(sqrt(cell_velocity), 1e-8);
 
-        double p_exponent = 1.0;
+        double p_exponent = 1.0;//?
         double q_exponent = 1.0;
-        double xi = fabs(cell_velocity_dot_fibre_direction) / (cell_velocity);
+        double xi = fabs(cell_velocity_dot_fibre_direction)/cell_velocity;
         double xip = pow(xi, p_exponent);
         double xiq = pow((1 - xi * xi), q_exponent);
 
@@ -105,8 +90,8 @@ void PhysiMeSS_Cell::add_potentials_from_fibre(PhysiMeSS_Fibre* pFibre)
 
         degrade_fibre(pFibre);
     }
+    
 }
-
 
 void PhysiMeSS_Cell::degrade_fibre(PhysiMeSS_Fibre* pFibre)
 {

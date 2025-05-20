@@ -151,8 +151,8 @@ void save_PhysiCell_to_MultiCellDS_v2( std::string filename_base , Microenvironm
 
 	char filename[1024]; 
 	sprintf( filename , "%s.xml" , filename_base.c_str() ); 
+	
 	BioFVM::biofvm_doc.save_file( filename );
-
 	return; 
 }
 
@@ -220,6 +220,10 @@ void add_PhysiCell_cells_to_open_xml_pugi_v2( pugi::xml_document& xml_dom, std::
 	static std::vector<int> cell_type_indices; 
 	static std::vector<int> cell_type_IDs; 
 
+	static std::vector<std::string> custom_data_variables_names; // storing the names of custom data in the order they appear in the matfile
+	static std::vector<std::string> custom_data_vector_names; 
+	static std::vector<int> custom_data_vector_sizes;
+
 	if( cell_types_legend_done == false )
 	{
 		cell_type_names.clear(); 
@@ -235,11 +239,11 @@ void add_PhysiCell_cells_to_open_xml_pugi_v2( pugi::xml_document& xml_dom, std::
 			cell_type_names.push_back( name ); 
 			cell_type_IDs.push_back( type ); 
 			cell_type_indices.push_back( index); 
+			std::cout << j << std::endl;
 		}
 
 		cell_types_legend_done = true; 
 	}
-
 	// set up the labels 
 	if( legend_done == false )
 	{
@@ -580,29 +584,48 @@ void add_PhysiCell_cells_to_open_xml_pugi_v2( pugi::xml_document& xml_dom, std::
 		// double damage_repair_rate; 
 		add_variable_to_labels( data_names,data_units,data_start_indices,data_sizes, 
 			"damage_repair_rate" , "1/min" , 1 ); 
-
+			
+		
 // custom 
-		for( int j=0 ; j < (*all_cells)[0]->custom_data.variables.size(); j++ )
-		{		
-			name = (*all_cells)[0]->custom_data.variables[j].name; 
-			units = (*all_cells)[0]->custom_data.variables[j].units; 
-			add_variable_to_labels( data_names,data_units,data_start_indices,data_sizes, 
-				name,units,1 ); 
-		}
+
+// 04/025 Modified: before didn't account different cell def having different custom data
+		for( int j=0; j < cell_definitions_by_index.size() ; j++ )
+		{
+			Cell_Definition* pCD = cell_definitions_by_index[j]; 
+			for( int i=0 ; i < pCD->custom_data.variables.size(); i++ )
+			{	
+				name = pCD->custom_data.variables[i].name; 
+				units = pCD->custom_data.variables[i].units; 
+				if (std::find(custom_data_variables_names.begin(), custom_data_variables_names.end(), name) == custom_data_variables_names.end())
+				{
+					custom_data_variables_names.push_back(name);
+					add_variable_to_labels( data_names,data_units,data_start_indices,data_sizes, 
+						name,units,1 ); 
+				}
+			}
 		
 		// custom vector variables 
-		for( int j=0 ; j < (*all_cells)[0]->custom_data.vector_variables.size(); j++ )
-		{
-			name = (*all_cells)[0]->custom_data.vector_variables[j].name; 
-			units = (*all_cells)[0]->custom_data.vector_variables[j].units; 
-			size = (*all_cells)[0]->custom_data.vector_variables[j].value.size(); 
-			add_variable_to_labels( data_names,data_units,data_start_indices,data_sizes, 
-				name,units,size ); 
+		
+			for( int i=0 ; i < pCD->custom_data.vector_variables.size(); i++ )
+			{
+				name = pCD->custom_data.vector_variables[i].name; 
+				units = pCD->custom_data.vector_variables[i].units; 
+				size = pCD->custom_data.vector_variables[i].value.size(); 
+				if (std::find(custom_data_vector_names.begin(), custom_data_vector_names.end(), name) == custom_data_vector_names.end())
+				{
+					custom_data_vector_names.push_back(name);
+					custom_data_vector_sizes.push_back(size);
+					add_variable_to_labels( data_names,data_units,data_start_indices,data_sizes, 
+						name,units,size ); 
+				}
+			}
 		}
+		
 
-		cell_data_size = total_data_size( data_sizes ); 
-		legend_done = true; 
+	cell_data_size = total_data_size( data_sizes ); 
+	legend_done = true; 
 	}
+
 
 	// get ready for XML navigation 
 	// pugi::xml_document& xml_dom = BioFVM::biofvm_doc; 
@@ -985,20 +1008,50 @@ void add_PhysiCell_cells_to_open_xml_pugi_v2( pugi::xml_document& xml_dom, std::
 		std::fwrite( &( pCell->phenotype.cell_integrity.damage_repair_rate ) , sizeof(double) , 1 , fp ); 
 
 // custom 
-		// custom scalar variables 
-		for( int j=0 ; j < (*all_cells)[0]->custom_data.variables.size(); j++ )
-		{ std::fwrite( &( pCell->custom_data.variables[j].value ) , sizeof(double) , 1 , fp ); }
+
+ 		for (std::string name : custom_data_variables_names) 
+		{ 
+   			auto it = std::find_if(
+        	pCell->custom_data.variables.begin(),
+        	pCell->custom_data.variables.end(),
+        	[&name](const PhysiCell::Variable& var) { return var.name == name; });
+     
+    		if (it != pCell->custom_data.variables.end()) 
+    		{
+				std::fwrite(&(it->value), sizeof(double), 1, fp); 
+    		}
+    		else
+    		{
+				double zero = 0.0;
+				std::fwrite(&zero, sizeof(double), 1, fp);
+    		}
+		}
 
 		// custom vector variables 
-		for( int j=0 ; j < (*all_cells)[0]->custom_data.vector_variables.size(); j++ )
+		for (int j = 0; j < custom_data_vector_names.size(); j++)
 		{
-			int size_temp = pCell->custom_data.vector_variables[j].value.size(); 
-			std::fwrite( pCell->custom_data.vector_variables[j].value.data() , sizeof(double) , size_temp , fp );
+			std::string name = custom_data_vector_names[j];
+			auto it = std::find_if(
+				pCell->custom_data.vector_variables.begin(),
+				pCell->custom_data.vector_variables.end(),
+				[&name](const PhysiCell::Vector_Variable& var) { return var.name == name; });
+
+			if (it != pCell->custom_data.vector_variables.end())
+			{
+				size_t size_temp = it->value.size();
+				std::fwrite(it->value.data(), sizeof(double), size_temp, fp);
+			}
+			else
+			{
+				std::vector<double> zero_vector(custom_data_vector_sizes[j], 0.0);
+				std::fwrite(zero_vector.data(), sizeof(double), custom_data_vector_sizes[j], fp);
+				
+			}
 		}
 	}
-
+	
 	fclose( fp ); 
-
+	
 #ifdef ADDON_PHYSIBOSS
 
 	// PhysiBoSS Intracellular Data
@@ -1199,7 +1252,7 @@ void add_PhysiCell_cells_to_open_xml_pugi_v2( pugi::xml_document& xml_dom, std::
 	}	
 
 	write_spring_attached_cells_graph( filename ); 
-
+	//std::cout << "This part is running" << std::endl;
 	return; 
 }
 

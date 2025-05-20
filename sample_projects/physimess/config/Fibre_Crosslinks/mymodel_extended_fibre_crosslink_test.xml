@@ -13,7 +13,7 @@
 	</domain>
 	
 	<overall>
-		<max_time units="min">0</max_time> 
+		<max_time units="min">10</max_time> 
 		<time_units>min</time_units>
 		<space_units>micron</space_units>
 	
@@ -30,7 +30,7 @@
 		<folder>output</folder>  
 
 		<full_data>
-			<interval units="min">1000</interval>
+			<interval units="min">1</interval>
 			<enable>true</enable>
 		</full_data>
 		
@@ -184,9 +184,9 @@
           <fibre_stuck_threshold units="none" description="movement threshold to declare a cell stuck">0.05</fibre_stuck_threshold>
           <fibre_pressure_threshold units="1/min" description="time before stuck cell can degrade fibre">10.0</fibre_pressure_threshold>
           
-          <fibre_pushing units="none" description="flag for fibre pushing">0.0</fibre_pushing>
+          <fibre_pushing units="none" description="flag for fibre pushing">1.0</fibre_pushing>
           <fibre_sticky units="none" description="measure of how easy it is to move a fibre">1.0</fibre_sticky>
-          <fibre_rotation units="none" description="flag for fibre rotation">0.0</fibre_rotation>
+          <fibre_rotation units="none" description="flag for fibre rotation">1.0</fibre_rotation>
           
           <vel_adhesion units="none" description="cell velocity parallel to fibres">0.6</vel_adhesion>
           <vel_contact units="none" description="cell velocity orthongonal to fibres">0.1</vel_contact>
@@ -261,7 +261,7 @@
             <persistence_time>1</persistence_time>
             <migration_bias>0.5</migration_bias>
             <options>
-              <enabled>false</enabled>
+              <enabled>true</enabled>
               <use_2D>true</use_2D>
               <chemotaxis>
                 <enabled>false</enabled>

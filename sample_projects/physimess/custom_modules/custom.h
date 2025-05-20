@@ -101,3 +101,12 @@ class PhysiMeSS_Cell_Custom_Degrade : public PhysiMeSS_Cell
   public:  
   void degrade_fibre(PhysiMeSS_Fibre* pFibre);
 };
+
+bool read_isFibreFromFile_status(pugi::xml_node config_root);
+bool read_isFibreFromFile_status(void);
+
+int read_FibreID(pugi::xml_node config_root);
+int read_FibreID(void);
+
+double read_RelativeFibreVolume(pugi::xml_node config_root);
+double read_RelativeFibreVolume(void);

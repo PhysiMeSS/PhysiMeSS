@@ -72,6 +72,10 @@
 #include <cmath>
 #include <omp.h>
 #include <fstream>
+#include <iostream>
+#include <string>
+#include <cstring> // for strcmp
+#include <sys/stat.h> // for mkdir
 
 #include "./core/PhysiCell.h"
 #include "./modules/PhysiCell_standard_modules.h" 
@@ -86,21 +90,75 @@ using namespace PhysiCell;
 int main( int argc, char* argv[] )
 {
 	// load and parse settings file(s)
-	
-	bool XML_status = false; 
-	char copy_command [1024]; 
-	if( argc > 1 )
-	{
-		XML_status = load_PhysiCell_config_file( argv[1] ); 
-		sprintf( copy_command , "cp %s %s" , argv[1] , PhysiCell_settings.folder.c_str() ); 
+	bool XML_status = false;
+	std::string settings_file;
+	std::string output_folder = "./output"; // Default output folder
+	bool OutputFromCommandLine = false;
+	bool SettingsFromCommandLine = false;
+	char copy_command[1024];
+
+	// First pass: check for output folder option
+	for (int i = 1; i < argc; ++i) {
+		if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "--output") == 0) {
+			// The next argument is the output folder
+			if (i + 1 < argc) {
+				output_folder = argv[i + 1];
+				OutputFromCommandLine = true;
+				std::cout << "output_folder is " << output_folder << std::endl;
+				mkdir(output_folder.c_str(), 0777);
+				i++; // Skip the next argument
+			} else {
+				std::cerr << "Error: No output folder specified after " << argv[i] << std::endl;
+				exit(-1);
+			}
+		}
 	}
-	else
-	{
-		XML_status = load_PhysiCell_config_file( "./config/PhysiCell_settings.xml" );
-		sprintf( copy_command , "cp ./config/PhysiCell_settings.xml %s" , PhysiCell_settings.folder.c_str() ); 
+
+	// Second pass: check for settings file option or standalone argument
+	for (int i = 1; i < argc; ++i) {
+		if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--settings") == 0) {
+			// The next argument is the settings file
+			if (i + 1 < argc) {
+				settings_file = argv[i + 1];
+				SettingsFromCommandLine = true;
+				XML_status = load_PhysiCell_config_file(settings_file.c_str());
+
+				// Only overwrite output folder if explicitly set via command line
+				if (OutputFromCommandLine) {
+					PhysiCell::PhysiCell_settings.folder = output_folder;
+				}
+				
+				sprintf(copy_command, "cp %s %s", settings_file.c_str(), PhysiCell_settings.folder.c_str());
+				i++; // Skip the next argument
+			} else {
+				std::cerr << "Error: No settings file specified after " << argv[i] << std::endl;
+				exit(-1);
+			}
+		} 
+		// Handle case where argument isn't an option flag and we haven't found a settings file yet
+		else if (argv[i][0] != '-' && !SettingsFromCommandLine) {
+			settings_file = argv[i];
+			SettingsFromCommandLine = true;
+			XML_status = load_PhysiCell_config_file(settings_file.c_str());
+			
+			// Don't overwrite output folder in this case
+			sprintf(copy_command, "cp %s %s", settings_file.c_str(), PhysiCell_settings.folder.c_str());
+		}
 	}
-	if( !XML_status )
-	{ exit(-1); }
+
+    // If no settings file was specified, use the default
+    if (settings_file.empty())
+    {
+        settings_file = "./config/PhysiCell_settings.xml";
+        XML_status = load_PhysiCell_config_file(settings_file.c_str());
+        sprintf(copy_command, "cp %s %s", settings_file.c_str(), PhysiCell_settings.folder.c_str());
+    }
+
+    if (!XML_status)
+    {
+        std::cerr << "Error: Failed to load settings file." << std::endl;
+        exit(-1);
+    }
 	
 	// copy config file to output directry 
 	system( copy_command ); 
@@ -192,25 +250,29 @@ int main( int argc, char* argv[] )
 				
 				if( PhysiCell_settings.enable_full_saves == true )
 				{	
+					for (auto* cell : *all_cells) {
+						if (isFibre(cell))
+						{
+							cell->custom_data["crosslink_count"] = static_cast<PhysiMeSS_Fibre*>(cell)->X_crosslink_count;
+						}
+					}
 					sprintf( filename , "%s/output%08u" , PhysiCell_settings.folder.c_str(),  PhysiCell_globals.full_output_index ); 
-					
 					save_PhysiCell_to_MultiCellDS_v2( filename , microenvironment , PhysiCell_globals.current_time ); 
 				}
 				
 				PhysiCell_globals.full_output_index++; 
 				PhysiCell_globals.next_full_save_time += PhysiCell_settings.full_save_interval;
 			}
-			
+
 			// save SVG plot if it's time
-			if( fabs( PhysiCell_globals.current_time - PhysiCell_globals.next_SVG_save_time  ) < 0.01 * diffusion_dt )
+			if( PhysiCell_globals.current_time > PhysiCell_globals.next_SVG_save_time - 0.5 * diffusion_dt ) // Why substract the half of diffusion dt ? 
 			{
 				if( PhysiCell_settings.enable_SVG_saves == true )
 				{	
 					sprintf( filename , "%s/snapshot%08u.svg" , PhysiCell_settings.folder.c_str() , PhysiCell_globals.SVG_output_index ); 
 					SVG_plot( filename , microenvironment, 0.0 , PhysiCell_globals.current_time, cell_coloring_function, substrate_coloring_function, cellcount_function );
-					
 					PhysiCell_globals.SVG_output_index++; 
-					PhysiCell_globals.next_SVG_save_time  += PhysiCell_settings.SVG_save_interval;
+					PhysiCell_globals.next_SVG_save_time += PhysiCell_settings.SVG_save_interval;
 				}
 			}
 
