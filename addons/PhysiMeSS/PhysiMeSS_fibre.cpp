@@ -163,13 +163,25 @@ void PhysiMeSS_Fibre::check_out_of_bounds(std::vector<double>& position)
 }
 
 /*
-    Effect of a cell in contact with this fibre: the cell can rotate the fibre
-    (about its centre, or about its crosslink point if it has exactly one) and
-    push it. Fibres with two or more crosslinks do not move.
+    Effect of a cell in contact with this fibre. Fibres with two or more
+    crosslinks do not move.
 
-    Like the push, which is added to the velocity of the fibre, the rotation is
-    added to its angular velocity: the fibre is rotated once per mechanics step,
-    by all the cells in contact with it (see PhysiMeSS_Fibre::rotate).
+    The cell acts on the fibre at the point of the fibre axis nearest to it,
+    in two ways:
+    - contact: the repulsion of PhysiCell, which pushes the fibre away from
+      the cell (PhysiMeSS_Geometry::contact_velocity);
+    - traction: a migrating cell drags the fibres it adheres to, with its
+      motility vector multiplied by fibre_sticky.
+
+    Translation (cell custom data fibre_pushing): the contact is added to the
+    velocity of the fibre. Only free fibres, or pairs of fibres crosslinked to
+    each other alone, are translated.
+
+    Rotation (cell custom data fibre_rotation): the torque of the contact and of
+    the traction, about the centre of the fibre or about its crosslink point if
+    it has exactly one, is added to the angular velocity of the fibre. The fibre
+    is rotated once per mechanics step, by all the cells in contact with it
+    (see PhysiMeSS_Fibre::rotate).
 
     In 2D simulations everything is computed in the z=0 plane.
 */
@@ -194,27 +206,29 @@ void PhysiMeSS_Fibre::add_potentials_from_cell(PhysiMeSS_Cell* cell)
         return; // no interaction
     }
 
+    // repulsion as per PhysiCell
+    const double effective_repulsion = sqrt(this->phenotype.mechanics.cell_cell_repulsion_strength *
+                                            cell->phenotype.mechanics.cell_cell_repulsion_strength);
+    const std::vector<double> contact = PhysiMeSS_Geometry::contact_velocity(this->displacement, R, effective_repulsion);
+
     if (cell->custom_data["fibre_rotation"] > 0.5) {
-        // the cell acts on the fibre at the point of the fibre axis nearest to it
         std::vector<double> point_of_impact(3, 0.0);
         // a free fibre rotates about its centre, a fibre with one crosslink about the crosslink
         std::vector<double> pivot(3, 0.0);
+        std::vector<double> centre(3, 0.0);
+        // contact + traction of the migrating cell
+        std::vector<double> cell_action(3, 0.0);
         const std::vector<double>& pivot_position = (X_crosslink_count == 1) ? this->fibres_crosslink_point : this->position;
+        const double stickiness = this->custom_data["fibre_sticky"];
         for (int i = 0; i < dimensions; i++) {
             point_of_impact[i] = cell->position[i] - this->displacement[i];
             pivot[i] = pivot_position[i];
-        }
-
-        std::vector<double> centre(3, 0.0);
-        std::vector<double> cell_velocity(3, 0.0);
-        for (int i = 0; i < dimensions; i++) {
             centre[i] = this->position[i];
-            cell_velocity[i] = cell->phenotype.motility.motility_vector[i];
+            cell_action[i] = contact[i] + stickiness * cell->phenotype.motility.motility_vector[i];
         }
 
-        // the fibre is dragged by the migrating cell
         const std::vector<double> omega = PhysiMeSS_Geometry::angular_velocity_about_pivot(
-            pivot, centre, point_of_impact, cell_velocity, this->mLength);
+            pivot, centre, point_of_impact, cell_action, this->mLength);
         for (int i = 0; i < 3; i++) {
             this->angular_velocity[i] += omega[i];
         }
@@ -224,20 +238,16 @@ void PhysiMeSS_Fibre::add_potentials_from_cell(PhysiMeSS_Cell* cell)
     if ( X_crosslink_count == 0 ||
         ((this->fibres_crosslinkers).size() == 1 && static_cast<PhysiMeSS_Fibre*>((this->fibres_crosslinkers[0]))->fibres_crosslinkers.size() < 2)) {
         if (cell->custom_data["fibre_pushing"] > 0.5) {
-            // repulsion as per PhysiCell
+            // add the relative pressure contribution
             static double simple_pressure_scale = 0.027288820670331;
             double temp_r = 1 - distance/R;
             temp_r *= temp_r; // (1 - d/R)^2
-
-            // add the relative pressure contribution
             state.simple_pressure += (temp_r / simple_pressure_scale);
 
-            double effective_repulsion = sqrt(this->phenotype.mechanics.cell_cell_repulsion_strength *
-                                              cell->phenotype.mechanics.cell_cell_repulsion_strength);
-            temp_r *= effective_repulsion;
-            if (fabs(temp_r) > 1e-16) { // no push when there is almost no overlap between fibre and cell
-                temp_r /= distance;
-                naxpy(&velocity, temp_r, displacement); // velocity -= temp_r * displacement
+            if (fabs(temp_r * effective_repulsion) > 1e-16) { // no push when there is almost no overlap between fibre and cell
+                for (int i = 0; i < 3; i++) {
+                    velocity[i] += contact[i];
+                }
             }
         }
     }
@@ -246,11 +256,8 @@ void PhysiMeSS_Fibre::add_potentials_from_cell(PhysiMeSS_Cell* cell)
 /*
     Rotation of the fibre during dt, with the angular velocity accumulated in
     add_potentials_from_cell:
-        angle = fibre_sticky * |angular_velocity| * dt
+        angle = |angular_velocity| * dt
     about its centre, or about its crosslink point if it has exactly one.
-    fibre_sticky scales the force exerted by the cells: with 1, a cell drags
-    the fibre with the force which would translate it at the velocity of the
-    cell; with 0, the cells slide along the fibre.
 */
 void PhysiMeSS_Fibre::rotate(double dt)
 {
@@ -266,13 +273,12 @@ void PhysiMeSS_Fibre::rotate(double dt)
     std::vector<double> pivot(3, 0.0);
     std::vector<double> centre(3, 0.0);
     std::vector<double> rotation_vector(3, 0.0);
-    const double scale = this->custom_data["fibre_sticky"] * dt;
     for (int i = 0; i < dimensions; i++) {
         pivot[i] = pivot_position[i];
         centre[i] = this->position[i];
     }
     for (int i = 0; i < 3; i++) {
-        rotation_vector[i] = scale * omega[i];
+        rotation_vector[i] = dt * omega[i];
     }
 
     const PhysiMeSS_Geometry::FibreRotation rotation = PhysiMeSS_Geometry::rotate_fibre_about_pivot(

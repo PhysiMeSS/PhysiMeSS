@@ -9,6 +9,8 @@ DOI: [10.46471/gigabyte.136](https://doi.org/10.46471/gigabyte.136).
 ## Code organisation
 The geometry of the cell-fibre interaction (nearest point on a fibre, rotation of a fibre about its centre or crosslink point) is in ```PhysiMeSS_geometry.h```. This header does not depend on PhysiCell, and is used in 2D and 3D simulations. Its unit tests are in ```tests/unit/physimess```, and are run with ```make physimess-tests```.
 
+The changes of the model since version 1.0.1 (what changed, why, and the effect on the results) are listed in [MODEL_CHANGES.md](MODEL_CHANGES.md).
+
 ## Dedicated sample project
 PhysiMeSS comes with a dedicated sample project, called **physimess-sample**. To build it, go to the root directory and use : 
 
@@ -79,7 +81,7 @@ fibre_length = 40.0 (microns)
 fibre_pushing = true
 ```
 
-* The xml file ```mymodel_rotating.xml``` with csv file ```snowplough.csv``` simulates a single cell rotating free/non-crosslinked fibres to access an attractant. By turning fibre rotating on (or off) you can control whether the cell can push fibres. Note the parameter ```fibre_sticky``` modulates how much a cell can rotate a fibre. A cell in contact with a fibre drags it with its motility velocity: the fibre rotates about its centre, or about its crosslink point if it has one, at an angular velocity proportional to ```fibre_sticky```, which does not depend on the mechanics time step. With ```fibre_sticky``` set to 0 the fibre is not rotated; a fibre is harder to rotate about a crosslink far from its centre.
+* The xml file ```mymodel_rotating.xml``` with csv file ```snowplough.csv``` simulates a single cell rotating free/non-crosslinked fibres to access an attractant. By turning fibre rotating on (or off) you can control whether the cell can push fibres. Note the parameter ```fibre_sticky``` modulates how much a cell can rotate a fibre. A cell rotates a fibre about its centre, or about its crosslink point if it has one, in two ways: by contact (the repulsion between the cell and the fibre, as for pushing) and by traction (a migrating cell drags the fibre with its motility velocity multiplied by ```fibre_sticky```). With ```fibre_sticky``` set to 0 only the contact rotates the fibre; a fibre is harder to rotate about a crosslink far from its centre.
 
 Default parameters are:
 

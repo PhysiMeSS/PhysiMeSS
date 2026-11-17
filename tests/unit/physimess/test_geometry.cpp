@@ -512,14 +512,14 @@ static void rotation_does_not_depend_on_the_frame()
     }
 }
 
-// ------------------------------------- a cell rotating a fibre in one time step
-// as in PhysiMeSS_Fibre: rotation vector = fibre_sticky * dt * sum of the angular velocities
+// ------------------------------------- a cell dragging a fibre during one time step
+// rotation vector = dt * angular velocity of the traction, fibre_sticky * motility_vector
 
 static FibreRotation cell_rotates_fibre( const Vec& pivot, const Vec& centre, const Vec& orientation, const Vec& impact,
                                          const Vec& velocity, double half_length, double stickiness, double dt )
 {
-    const Vec omega = angular_velocity_about_pivot(pivot, centre, impact, velocity, half_length);
-    return rotate_fibre_about_pivot(pivot, centre, orientation, scale(stickiness * dt, omega));
+    const Vec omega = angular_velocity_about_pivot(pivot, centre, impact, scale(stickiness, velocity), half_length);
+    return rotate_fibre_about_pivot(pivot, centre, orientation, scale(dt, omega));
 }
 
 static void free_fibre_dragged_by_a_cell()
@@ -601,6 +601,172 @@ static void the_point_touched_by_the_cell_follows_the_cell()
     }
 }
 
+// ------------------------------------- contact between a cell and a fibre
+// contact_velocity(displacement, contact_distance, repulsion)
+
+static void contact_velocity_closed_forms()
+{
+    // cell centre at 3 above the fibre axis, contact up to 6 (cell radius + fibre radius), repulsion 0.4:
+    // the fibre is pushed away from the cell at 0.4 * (1 - 3/6)^2 = 0.1
+    CHECK_VEC_NEAR(contact_velocity(vec(0, 3, 0), 6, 0.4), vec(0, -0.1, 0), TOL);
+    CHECK_VEC_NEAR(contact_velocity(vec(0, 0, -3), 6, 0.4), vec(0, 0, 0.1), TOL);
+    // oblique: displacement (2, -1, 2) of norm 3
+    CHECK_VEC_NEAR(contact_velocity(vec(2, -1, 2), 6, 0.4), scale(-0.1 / 3, vec(2, -1, 2)), TOL);
+    // no contact: at the contact distance or beyond
+    CHECK_NEAR(norm(contact_velocity(vec(0, 6, 0), 6, 0.4)), 0.0, TOL);
+    CHECK_NEAR(norm(contact_velocity(vec(0, 7, 0), 6, 0.4)), 0.0, TOL);
+    // no repulsion
+    CHECK_NEAR(norm(contact_velocity(vec(0, 3, 0), 6, 0.0)), 0.0, TOL);
+    // cell centre on the fibre axis: no direction to push to, but no NaN
+    const Vec on_axis = contact_velocity(vec(0, 0, 0), 6, 0.4);
+    CHECK(on_axis[0] == on_axis[0] && on_axis[1] == on_axis[1] && on_axis[2] == on_axis[2]);
+    CHECK_NEAR(norm(on_axis), 0.0, TOL);
+}
+
+static void contact_velocity_properties()
+{
+    for (int n = 0; n < 500; n++) {
+        const double contact_distance = uniform(5, 15), repulsion = uniform(0.1, 20);
+        const Vec direction = random_unit_vector();
+        const double d = uniform(0.01, 1.2) * contact_distance;
+        const Vec velocity = contact_velocity(scale(d, direction), contact_distance, repulsion);
+
+        if (d >= contact_distance) {
+            CHECK_NEAR(norm(velocity), 0.0, TOL);
+            continue;
+        }
+        // along the line of the centres, away from the cell
+        CHECK_NEAR(norm(cross(velocity, direction)), 0.0, 1e-10);
+        CHECK(dot(velocity, direction) <= 0);
+        // PhysiCell repulsion: repulsion * (1 - d/R)^2
+        const double overlap = 1 - d / contact_distance;
+        CHECK_NEAR(norm(velocity), repulsion * overlap * overlap, 1e-10);
+        // the deeper the contact, the stronger
+        const Vec deeper = contact_velocity(scale(d / 2, direction), contact_distance, repulsion);
+        CHECK(norm(deeper) > norm(velocity));
+    }
+}
+
+// ------------------------------------- torque of the contact and of the traction
+// as in PhysiMeSS_Fibre: the angular velocity is that of the velocity
+//     contact_velocity + fibre_sticky * motility_vector
+// applied at the point of the fibre nearest to the cell
+
+static Vec cell_angular_velocity( const Vec& pivot, const Vec& centre, const Vec& orientation, double half_length,
+                                  const Vec& cell_position, const Vec& motility, double contact_distance,
+                                  double repulsion, double stickiness )
+{
+    const Vec displacement = displacement_from_fibre(cell_position, centre, orientation, half_length);
+    if (norm(displacement) > contact_distance) {
+        return vec(0, 0, 0);
+    }
+    const Vec impact = sub(cell_position, displacement);
+    const Vec velocity = add(contact_velocity(displacement, contact_distance, repulsion), scale(stickiness, motility));
+    return angular_velocity_about_pivot(pivot, centre, impact, velocity, half_length);
+}
+
+static void cell_at_rest_pressing_on_a_fibre()
+{
+    // fibre from (-10,0,0) to (10,0,0); contact distance 6, repulsion 0.4: a cell at 3 from the axis pushes at 0.1
+    const Vec centre = vec(0, 0, 0), orientation = vec(1, 0, 0), at_rest = vec(0, 0, 0);
+    const double half_length = 10, R = 6, repulsion = 0.4, drag = 100.0 / 3;
+
+    // above the positive end: the end goes down, clockwise seen from +z
+    CHECK_VEC_NEAR(cell_angular_velocity(centre, centre, orientation, half_length, vec(8, 3, 0), at_rest, R, repulsion, 1.0),
+                   vec(0, 0, -8 * 0.1 / drag), TOL);
+    // above the negative end: anticlockwise
+    CHECK_VEC_NEAR(cell_angular_velocity(centre, centre, orientation, half_length, vec(-8, 3, 0), at_rest, R, repulsion, 1.0),
+                   vec(0, 0, 8 * 0.1 / drag), TOL);
+    // above the centre: pushed, not rotated
+    CHECK_NEAR(norm(cell_angular_velocity(centre, centre, orientation, half_length, vec(0, 3, 0), at_rest, R, repulsion, 1.0)), 0.0, TOL);
+    // out of the plane, at z = +3 over the positive end: the end goes towards -z, rotation about +y
+    CHECK_VEC_NEAR(cell_angular_velocity(centre, centre, orientation, half_length, vec(8, 0, 3), at_rest, R, repulsion, 1.0),
+                   vec(0, 8 * 0.1 / drag, 0), TOL);
+    // too far to touch
+    CHECK_NEAR(norm(cell_angular_velocity(centre, centre, orientation, half_length, vec(8, 7, 0), at_rest, R, repulsion, 1.0)), 0.0, TOL);
+    // fibre hinged at its negative end: same torque about the pivot for a longer lever, larger drag (L^2/3)
+    CHECK_VEC_NEAR(cell_angular_velocity(vec(-10, 0, 0), centre, orientation, half_length, vec(8, 3, 0), at_rest, R, repulsion, 1.0),
+                   vec(0, 0, -18 * 0.1 / (400.0 / 3)), TOL);
+}
+
+static void cells_pressing_on_both_sides_of_a_fibre()
+{
+    const Vec centre = vec(0, 0, 0), orientation = vec(1, 0, 0), at_rest = vec(0, 0, 0);
+    const double half_length = 10, R = 6, repulsion = 0.4, drag = 100.0 / 3;
+    const Vec above_positive_end = cell_angular_velocity(centre, centre, orientation, half_length, vec(8, 3, 0), at_rest, R, repulsion, 1.0);
+
+    // same side, opposite ends: the fibre is pushed, the torques cancel
+    Vec total = add(above_positive_end,
+                    cell_angular_velocity(centre, centre, orientation, half_length, vec(-8, 3, 0), at_rest, R, repulsion, 1.0));
+    CHECK_NEAR(norm(total), 0.0, TOL);
+    // opposite sides, opposite ends: the torques add up
+    total = add(above_positive_end,
+                cell_angular_velocity(centre, centre, orientation, half_length, vec(-8, -3, 0), at_rest, R, repulsion, 1.0));
+    CHECK_VEC_NEAR(total, vec(0, 0, -2 * 8 * 0.1 / drag), TOL);
+    // opposite sides, same place: the fibre is squeezed, no rotation
+    total = add(above_positive_end,
+                cell_angular_velocity(centre, centre, orientation, half_length, vec(8, -3, 0), at_rest, R, repulsion, 1.0));
+    CHECK_NEAR(norm(total), 0.0, TOL);
+}
+
+static void contact_and_traction_add_up()
+{
+    const Vec centre = vec(0, 0, 0), orientation = vec(1, 0, 0);
+    const double half_length = 10, R = 6, repulsion = 0.4, drag = 100.0 / 3;
+    const Vec cell = vec(8, 3, 0); // above the positive end, pushes it down at 0.1
+
+    // cell moving towards the fibre (-y) at 0.5, stickiness 2: contact and traction in the same direction
+    CHECK_VEC_NEAR(cell_angular_velocity(centre, centre, orientation, half_length, cell, vec(0, -0.5, 0), R, repulsion, 2.0),
+                   vec(0, 0, -8 * (0.1 + 2 * 0.5) / drag), TOL);
+    // cell moving away from the fibre (+y): the traction pulls the fibre, against the contact
+    CHECK_VEC_NEAR(cell_angular_velocity(centre, centre, orientation, half_length, cell, vec(0, 0.5, 0), R, repulsion, 2.0),
+                   vec(0, 0, -8 * (0.1 - 2 * 0.5) / drag), TOL);
+    // no stickiness: the motion of the cell does not matter, only the contact
+    CHECK_VEC_NEAR(cell_angular_velocity(centre, centre, orientation, half_length, cell, vec(0, 0.5, 0), R, repulsion, 0.0),
+                   vec(0, 0, -8 * 0.1 / drag), TOL);
+    // no repulsion: only the traction
+    CHECK_VEC_NEAR(cell_angular_velocity(centre, centre, orientation, half_length, cell, vec(0, 0.5, 0), R, 0.0, 2.0),
+                   vec(0, 0, 8 * 2 * 0.5 / drag), TOL);
+    // cell moving along the fibre: no traction torque
+    CHECK_VEC_NEAR(cell_angular_velocity(centre, centre, orientation, half_length, cell, vec(0.5, 0, 0), R, repulsion, 2.0),
+                   vec(0, 0, -8 * 0.1 / drag), TOL);
+    // traction out of the plane (+z), contact in the plane
+    CHECK_VEC_NEAR(cell_angular_velocity(centre, centre, orientation, half_length, cell, vec(0, 0, 0.5), R, repulsion, 2.0),
+                   vec(0, -8 * 2 * 0.5 / drag, -8 * 0.1 / drag), TOL);
+}
+
+static void contact_torque_properties_in_3D()
+{
+    for (int n = 0; n < 1000; n++) {
+        const Vec centre = random_vector(50), orientation = random_unit_vector();
+        const double half_length = uniform(5, 40), R = uniform(6, 12), repulsion = uniform(0.1, 10);
+        const Vec pivot = (n % 2 == 0) ? centre : add(centre, scale(uniform(-1, 1) * half_length, orientation));
+        // a cell in contact with the fibre, anywhere along it (including beyond the ends)
+        const double abscissa = uniform(-1.1, 1.1) * half_length;
+        const Vec normal = random_perpendicular(orientation);
+        const Vec cell = add(add(centre, scale(abscissa, orientation)), scale(uniform(0.05, 0.9) * R, normal));
+        const Vec displacement = displacement_from_fibre(cell, centre, orientation, half_length);
+        if (norm(displacement) >= R) {
+            continue;
+        }
+        const Vec omega = cell_angular_velocity(pivot, centre, orientation, half_length, cell, vec(0, 0, 0), R, repulsion, 1.0);
+
+        // perpendicular to the fibre
+        CHECK_NEAR(dot(omega, orientation), 0.0, 1e-9);
+        // the point of contact moves away from the cell
+        const Vec impact = sub(cell, displacement);
+        CHECK(dot(cross(omega, sub(impact, pivot)), displacement) <= 1e-12);
+
+        // same result in another frame
+        const Vec k = random_unit_vector(), shift = random_vector(100);
+        const double angle = uniform(-PI, PI);
+        const Vec moved = cell_angular_velocity(add(rotate(pivot, k, angle), shift), add(rotate(centre, k, angle), shift),
+                                                rotate(orientation, k, angle), half_length, add(rotate(cell, k, angle), shift),
+                                                vec(0, 0, 0), R, repulsion, 1.0);
+        CHECK_VEC_NEAR(moved, rotate(omega, k, angle), 1e-9);
+    }
+}
+
 // ---------------------------------------------------------------- main
 
 struct Test
@@ -639,6 +805,12 @@ int main()
         TEST(free_fibre_dragged_by_a_cell),
         TEST(crosslinked_fibre_dragged_by_a_cell),
         TEST(the_point_touched_by_the_cell_follows_the_cell),
+        TEST(contact_velocity_closed_forms),
+        TEST(contact_velocity_properties),
+        TEST(cell_at_rest_pressing_on_a_fibre),
+        TEST(cells_pressing_on_both_sides_of_a_fibre),
+        TEST(contact_and_traction_add_up),
+        TEST(contact_torque_properties_in_3D),
     };
     const int number_of_tests = sizeof(tests) / sizeof(tests[0]);
 

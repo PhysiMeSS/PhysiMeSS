@@ -13,6 +13,7 @@
     All vectors have three components.
 */
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -100,9 +101,43 @@ inline std::vector<double> displacement_from_fibre(
 }
 
 /*
-    Angular velocity given to a fibre by a cell which drags it at `impact_point`
-    (a point on the fibre axis) with the velocity `velocity`. The fibre rotates
-    about `pivot`: its centre if it is free, its crosslink point otherwise.
+    Velocity given to a fibre by the contact with a cell: the repulsion of
+    PhysiCell,
+        repulsion * (1 - d / contact_distance)^2
+    directed from the cell to the fibre, where d = |displacement| is the
+    distance from the fibre axis to the cell centre (`displacement` is the
+    result of displacement_from_fibre for the cell centre), and
+    contact_distance = cell radius + fibre radius.
+
+    Zero when the cell and the fibre do not touch (d >= contact_distance).
+*/
+inline std::vector<double> contact_velocity(
+    const std::vector<double>& displacement,
+    double contact_distance,
+    double repulsion )
+{
+    std::vector<double> velocity(3, 0.0);
+    const double distance = std::max(norm(displacement), 0.00001);
+    if (distance >= contact_distance) {
+        return velocity;
+    }
+    double magnitude = 1 - distance / contact_distance;
+    magnitude *= magnitude; // (1 - d/R)^2
+    magnitude *= repulsion;
+    magnitude /= distance;
+    for (unsigned int i = 0; i < 3; i++) {
+        velocity[i] = -magnitude * displacement[i];
+    }
+    return velocity;
+}
+
+/*
+    Angular velocity given to a fibre by a cell which acts on it at `impact_point`
+    (a point on the fibre axis). `velocity` is the velocity that the force of
+    the cell would give to the fibre if it only translated it: the velocity
+    of the contact (contact_velocity) and/or of the traction of a migrating
+    cell. The fibre rotates about `pivot`: its centre if it is free, its
+    crosslink point otherwise.
 
     The mechanics is overdamped, as for the cells of PhysiCell: velocities are
     proportional to forces. For a rod of length L with a uniform drag along its
