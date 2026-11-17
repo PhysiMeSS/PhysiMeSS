@@ -196,6 +196,11 @@ PhysiMeSS.o: ./addons/PhysiMeSS/PhysiMeSS.cpp
 custom.o: ./custom_modules/custom.cpp 
 	$(COMPILE_COMMAND) -c ./custom_modules/custom.cpp
 
+# unit tests of the cell-fibre geometry
+
+physimess-tests:
+	$(MAKE) -C ./tests/unit/physimess run
+
 # cleanup
 
 reset:

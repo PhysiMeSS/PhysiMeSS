@@ -20,3 +20,4 @@ studio_debug.log
 user_projects/*
 !user_projects/empty.txt
 physimessenv/
+tests/unit/physimess/physimess_unit_tests

@@ -198,6 +198,9 @@ physimess-sample:
 	cp -r ./sample_projects/physimess/config/* ./config/
 
 
+physimess-tests:
+	$(MAKE) -C ./tests/unit/physimess run
+
 custom-division-sample:
 	cp ./sample_projects/custom_division/custom_modules/* ./custom_modules/
 	touch main.cpp && cp main.cpp main-backup.cpp
