@@ -99,6 +99,52 @@ inline std::vector<double> displacement_from_fibre(
     return displacement;
 }
 
+/*
+    Angular velocity given to a fibre by a cell which drags it at `impact_point`
+    (a point on the fibre axis) with the velocity `velocity`. The fibre rotates
+    about `pivot`: its centre if it is free, its crosslink point otherwise.
+
+    The mechanics is overdamped, as for the cells of PhysiCell: velocities are
+    proportional to forces. For a rod of length L with a uniform drag along its
+    length, a force which would translate the rod at the velocity v, applied
+    at the lever arm r = impact_point - pivot, rotates it at
+
+        omega = (r x v) / (L^2/12 + d^2)        with d = |centre - pivot|
+
+    L^2/12 + d^2 is the mean square distance of the points of the rod to the
+    pivot (L^2/12 about the centre, L^2/3 about an end): the further the pivot
+    is from the centre, the harder it is to rotate the fibre.
+
+    The contributions of several cells add up. Only the part of the velocity
+    perpendicular to the fibre matters; the result is perpendicular to the fibre.
+*/
+inline std::vector<double> angular_velocity_about_pivot(
+    const std::vector<double>& pivot,
+    const std::vector<double>& centre,
+    const std::vector<double>& impact_point,
+    const std::vector<double>& velocity,
+    double half_length )
+{
+    std::vector<double> lever(3, 0.0);
+    std::vector<double> pivot_to_centre(3, 0.0);
+    for (unsigned int i = 0; i < 3; i++) {
+        lever[i] = impact_point[i] - pivot[i];
+        pivot_to_centre[i] = centre[i] - pivot[i];
+    }
+    const double fibre_length = 2 * half_length;
+    const double rotational_drag = fibre_length * fibre_length / 12 + dot(pivot_to_centre, pivot_to_centre);
+
+    std::vector<double> angular_velocity(3, 0.0);
+    if (rotational_drag <= 0.) {
+        return angular_velocity; // fibre reduced to a point
+    }
+    angular_velocity = cross(lever, velocity);
+    for (unsigned int i = 0; i < 3; i++) {
+        angular_velocity[i] /= rotational_drag;
+    }
+    return angular_velocity;
+}
+
 struct FibreRotation
 {
     bool rotated = false;             // false: the fibre is left untouched
@@ -107,90 +153,62 @@ struct FibreRotation
 };
 
 /*
-    Rotation of a fibre about `pivot` when `force` is applied at `impact_point`
-    (a point on the fibre axis).
+    Rigid rotation of a fibre about `pivot` by the rotation vector `rotation`:
+    its direction is the axis of the rotation and its norm the angle in radians
+    (for an angular velocity omega applied during dt, rotation = omega * dt).
 
-    torque  = (impact_point - pivot) x force
-    angle   = stickiness * |torque| / (L^2 / 12)        with L = 2 * half_length
-    The lever arm (impact_point - pivot) is rotated by `angle` about the torque
-    direction with Rodrigues' formula. As the torque is perpendicular to the
-    lever arm, the formula reduces to
-        v_new = v cos(angle) + (k x v) sin(angle)
+    Both the orientation and the vector from the pivot to the centre are
+    rotated with Rodrigues' formula
 
-    The returned orientation is the direction of the rotated lever arm, i.e.
-    it points from the pivot towards the impact point. The fibre centre is
-    rotated about the pivot with the rest of the fibre (it only moves when
-    the pivot is not the centre, i.e. for a crosslinked fibre).
+        v_new = v cos(angle) + (k x v) sin(angle) + k (k . v) (1 - cos(angle))
 
-    No rotation is returned when the force is applied at the pivot or when
-    the resulting angle is negligible (force parallel to the lever arm).
+    so the pivot stays at the same place on the fibre, and the orientation
+    keeps its sign. The centre only moves when the pivot is not the centre,
+    i.e. for a crosslinked fibre.
+
+    No rotation is returned when the angle is negligible.
 */
 inline FibreRotation rotate_fibre_about_pivot(
     const std::vector<double>& pivot,
     const std::vector<double>& centre,
-    const std::vector<double>& impact_point,
-    const std::vector<double>& force,
-    double half_length,
-    double stickiness )
+    const std::vector<double>& orientation,
+    const std::vector<double>& rotation )
 {
     FibreRotation result;
 
-    std::vector<double> lever(3, 0.0);
-    for (unsigned int i = 0; i < 3; i++) {
-        lever[i] = impact_point[i] - pivot[i];
-    }
-    const double lever_length = norm(lever);
-    if (lever_length < 1e-10) {
-        return result;
-    }
-
-    std::vector<double> old_direction(3, 0.0);
-    for (unsigned int i = 0; i < 3; i++) {
-        old_direction[i] = lever[i] / lever_length;
-    }
-
-    std::vector<double> axis = cross(lever, force);
-    const double torque_magnitude = norm(axis);
-    const double fibre_length = 2 * half_length;
-    const double moment_of_inertia = fibre_length * fibre_length / 12; // rod about its centre, per unit mass
-    const double angle = stickiness * torque_magnitude / moment_of_inertia;
+    const double angle = norm(rotation);
     if (angle < 1e-16) {
         return result;
     }
+    std::vector<double> axis(3, 0.0);
+    std::vector<double> pivot_to_centre(3, 0.0);
     for (unsigned int i = 0; i < 3; i++) {
-        axis[i] /= torque_magnitude;
+        axis[i] = rotation[i] / angle;
+        pivot_to_centre[i] = centre[i] - pivot[i];
     }
 
     const double c = std::cos(angle);
     const double s = std::sin(angle);
-    const std::vector<double> axis_cross_direction = cross(axis, old_direction);
 
-    std::vector<double> new_direction(3, 0.0);
+    const std::vector<double> axis_cross_orientation = cross(axis, orientation);
+    const double axis_dot_orientation = dot(axis, orientation);
+    const std::vector<double> axis_cross_centre = cross(axis, pivot_to_centre);
+    const double axis_dot_centre = dot(axis, pivot_to_centre);
+
+    result.rotated = true;
+    result.orientation.assign(3, 0.0);
+    result.centre.assign(3, 0.0);
     double new_norm = 1e-32; // same guard as BioFVM::normalize
     for (unsigned int i = 0; i < 3; i++) {
-        new_direction[i] = old_direction[i] * c + axis_cross_direction[i] * s;
-        new_norm += new_direction[i] * new_direction[i];
+        result.orientation[i] = orientation[i] * c + axis_cross_orientation[i] * s
+                                + axis[i] * axis_dot_orientation * (1 - c);
+        new_norm += result.orientation[i] * result.orientation[i];
+        result.centre[i] = pivot[i] + pivot_to_centre[i] * c + axis_cross_centre[i] * s
+                           + axis[i] * axis_dot_centre * (1 - c);
     }
     new_norm = std::sqrt(new_norm);
     for (unsigned int i = 0; i < 3; i++) {
-        new_direction[i] /= new_norm;
-    }
-
-    std::vector<double> pivot_to_centre(3, 0.0);
-    for (unsigned int i = 0; i < 3; i++) {
-        pivot_to_centre[i] = centre[i] - pivot[i];
-    }
-    const double pivot_to_centre_distance = norm(pivot_to_centre);
-
-    result.rotated = true;
-    result.orientation = new_direction;
-    result.centre = centre;
-    if (pivot_to_centre_distance > 1e-10) {
-        // the centre is on the fibre axis, on the side of the impact point or on the other side of the pivot
-        const double side = (dot(pivot_to_centre, old_direction) < 0) ? -1.0 : 1.0;
-        for (unsigned int i = 0; i < 3; i++) {
-            result.centre[i] += side * (-old_direction[i] + new_direction[i]) * pivot_to_centre_distance;
-        }
+        result.orientation[i] /= new_norm;
     }
     return result;
 }

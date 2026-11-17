@@ -17,6 +17,8 @@ class PhysiMeSS_Fibre : public PhysiMeSS_Agent
     public:
     std::vector<PhysiCell::Cell*> fibres_crosslinkers;
     std::vector<double> fibres_crosslink_point;
+    // sum of the angular velocities given by the cells in contact with the fibre during the current mechanics step
+    std::vector<double> angular_velocity;
     
     double mLength;
     double mRadius;
@@ -30,6 +32,8 @@ class PhysiMeSS_Fibre : public PhysiMeSS_Agent
     void check_out_of_bounds(std::vector<double>& position);
     virtual void add_potentials_from_fibre(PhysiMeSS_Fibre* other_fibre);
     virtual void add_potentials_from_cell(PhysiMeSS_Cell* cell);
+    // rotate the fibre with the accumulated angular velocity, during dt
+    void rotate(double dt);
 
     void register_fibre_voxels();
     void deregister_fibre_voxels();

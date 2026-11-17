@@ -65,6 +65,9 @@ void physimess_update_cell_velocity( Cell* pCell, Phenotype& phenotype, double d
             }
         }
     } else {
+        // the angular velocity is accumulated below, from the cells in contact with the fibre
+        static_cast<PhysiMeSS_Fibre*>(pCell)->angular_velocity.assign(3, 0.0);
+
         // Count crosslinks
         static_cast<PhysiMeSS_Fibre*>(pCell)->X_crosslink_count = 0;
         if (static_cast<PhysiMeSS_Fibre*>(pCell)->fibres_crosslinkers.size() > 0){
@@ -141,6 +144,16 @@ void physimess_mechanics( double dt )
     {
         last_update_time = PhysiCell_globals.current_time;
         mechanics_initialized = true;
+
+        // rotate the fibres with the angular velocities accumulated during the last mechanics step
+        // (before the neighbours and the crosslinks are determined again)
+        for( int i=0; i < (*all_cells).size(); i++ )
+        {
+            Cell* pC = (*all_cells)[i];
+            if (isFibre(pC)) {
+                static_cast<PhysiMeSS_Fibre*>(pC)->rotate(dt);
+            }
+        }
         
         //#pragma omp parallel for
         // This is not parallel because we are modifying the agend grid

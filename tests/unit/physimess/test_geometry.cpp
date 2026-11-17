@@ -79,12 +79,6 @@ static Vec rotate( const Vec& v, const Vec& k, double angle )
     return add(add(scale(c, v), scale(s, cross(k, v))), scale((1 - c) * dot(k, v), k));
 }
 
-// a fibre is symmetric: orientations u and -u describe the same fibre
-static bool same_axis( const Vec& a, const Vec& b, double tolerance )
-{
-    return norm(cross(a, b)) <= tolerance && std::fabs(std::fabs(dot(a, b)) - 1.0) <= tolerance;
-}
-
 static std::mt19937 generator(20240613);
 
 static double uniform( double low, double high )
@@ -114,13 +108,6 @@ static Vec random_perpendicular( const Vec& u )
         v = cross(u, random_unit_vector());
     }
     return unit(v);
-}
-
-// angle of rotation applied by rotate_fibre_about_pivot, from its documentation
-static double expected_angle( const Vec& lever, const Vec& force, double half_length, double stickiness )
-{
-    const double length = 2 * half_length;
-    return stickiness * norm(cross(lever, force)) / (length * length / 12);
 }
 
 // ------------------------------------------------- nearest point on a fibre
@@ -230,167 +217,256 @@ static void nearest_point_of_a_fibre_of_zero_length()
     CHECK_VEC_NEAR(displacement, vec(3, 4, 5), TOL);
 }
 
-// ------------------------------------------------- rotation of a free fibre
-// (the pivot is the centre of the fibre)
+// ------------------------------------- angular velocity given by a cell
+// angular_velocity_about_pivot(pivot, centre, impact_point, velocity, half_length)
 
-static void free_fibre_pushed_at_its_positive_end_in_plane()
+static void angular_velocity_of_a_free_fibre()
 {
-    // fibre along x, force +y applied at x = +8: torque along +z,
-    // anticlockwise rotation seen from +z
-    const Vec centre = vec(0, 0, 0), impact = vec(8, 0, 0), force = vec(0, 0.5, 0);
-    const double half_length = 10, stickiness = 1.0;
-    const double angle = stickiness * 8 * 0.5 / (20.0 * 20.0 / 12); // 0.12 rad
-
-    const FibreRotation rotation = rotate_fibre_about_pivot(centre, centre, impact, force, half_length, stickiness);
-    CHECK(rotation.rotated);
-    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), std::sin(angle), 0), TOL);
-    CHECK_VEC_NEAR(rotation.centre, centre, TOL);
+    // fibre from (-10,0,0) to (10,0,0), free: the pivot is the centre, L^2/12 = 100/3
+    const Vec centre = vec(0, 0, 0);
+    // dragged towards +y at x = +8: anticlockwise seen from +z
+    CHECK_VEC_NEAR(angular_velocity_about_pivot(centre, centre, vec(8, 0, 0), vec(0, 0.5, 0), 10), vec(0, 0, 0.12), TOL);
+    // dragged towards +y at x = -8: clockwise seen from +z
+    CHECK_VEC_NEAR(angular_velocity_about_pivot(centre, centre, vec(-8, 0, 0), vec(0, 0.5, 0), 10), vec(0, 0, -0.12), TOL);
+    // dragged towards +z at x = +8: out of the plane, about -y
+    CHECK_VEC_NEAR(angular_velocity_about_pivot(centre, centre, vec(8, 0, 0), vec(0, 0, 0.5), 10), vec(0, -0.12, 0), TOL);
+    // fibre along z dragged towards +x at z = -8: about -y as well
+    CHECK_VEC_NEAR(angular_velocity_about_pivot(centre, centre, vec(0, 0, -8), vec(0.5, 0, 0), 10), vec(0, -0.12, 0), TOL);
+    // oblique velocity (1, 2, 2) at x = +6, fibre of length 24 (L^2/12 = 48): (6,0,0) x (1,2,2) = (0,-12,12)
+    CHECK_VEC_NEAR(angular_velocity_about_pivot(centre, centre, vec(6, 0, 0), vec(1, 2, 2), 12), vec(0, -0.25, 0.25), TOL);
 }
 
-static void free_fibre_pushed_at_its_negative_end_in_plane()
+static void angular_velocity_of_a_crosslinked_fibre()
 {
-    // same force at x = -8: torque along -z, clockwise rotation seen from +z
-    const Vec centre = vec(0, 0, 0), impact = vec(-8, 0, 0), force = vec(0, 0.5, 0);
-    const double half_length = 10, stickiness = 1.0;
-    const double angle = stickiness * 8 * 0.5 / (20.0 * 20.0 / 12);
+    // fibre from (0,0,0) to (20,0,0) crosslinked at its end: L^2/12 + d^2 = 100/3 + 100 = L^2/3
+    CHECK_VEC_NEAR(angular_velocity_about_pivot(vec(0, 0, 0), vec(10, 0, 0), vec(15, 0, 0), vec(0, 0.4, 0), 10),
+                   vec(0, 0, 15 * 0.4 / (400.0 / 3)), TOL);
+    // fibre from (-10,0,0) to (10,0,0) crosslinked at x = -5: 100/3 + 25
+    CHECK_VEC_NEAR(angular_velocity_about_pivot(vec(-5, 0, 0), vec(0, 0, 0), vec(5, 0, 0), vec(0, 0, 0.4), 10),
+                   vec(0, -10 * 0.4 / (100.0 / 3 + 25), 0), TOL);
+    // ... dragged on the other side of the crosslink, at x = -9: the rotation is reversed
+    CHECK_VEC_NEAR(angular_velocity_about_pivot(vec(-5, 0, 0), vec(0, 0, 0), vec(-9, 0, 0), vec(0, 0, 0.4), 10),
+                   vec(0, 4 * 0.4 / (100.0 / 3 + 25), 0), TOL);
 
-    const FibreRotation rotation = rotate_fibre_about_pivot(centre, centre, impact, force, half_length, stickiness);
-    CHECK(rotation.rotated);
-    CHECK(same_axis(rotation.orientation, vec(std::cos(angle), -std::sin(angle), 0), TOL));
-    // the returned orientation points from the pivot to the impact point
-    CHECK_VEC_NEAR(rotation.orientation, vec(-std::cos(angle), std::sin(angle), 0), TOL);
-    CHECK_VEC_NEAR(rotation.centre, centre, TOL);
+    // with the same lever arm, a fibre is 4 times harder to rotate about its end than about its centre
+    const Vec about_centre = angular_velocity_about_pivot(vec(0, 0, 0), vec(0, 0, 0), vec(5, 0, 0), vec(0, 1, 0), 10);
+    const Vec about_end = angular_velocity_about_pivot(vec(-10, 0, 0), vec(0, 0, 0), vec(-5, 0, 0), vec(0, 1, 0), 10);
+    CHECK_NEAR(norm(about_centre) / norm(about_end), 4.0, 1e-10);
 }
 
-static void free_fibre_pushed_out_of_plane()
+static void angular_velocity_balances_the_drag_along_the_fibre()
 {
-    // fibre along x, force +z applied at x = +8: torque along -y,
-    // the positive end of the fibre rises towards +z
-    const Vec centre = vec(0, 0, 0), impact = vec(8, 0, 0), force = vec(0, 0, 0.5);
-    const double half_length = 10, stickiness = 1.0;
-    const double angle = stickiness * 8 * 0.5 / (20.0 * 20.0 / 12);
+    // Independent derivation of L^2/12 + d^2. Overdamped rod with a drag coefficient of 1
+    // per unit length: a force F translates it at the velocity v = F / L. The same force
+    // applied at the lever arm r exerts the torque r x F about the pivot, balanced by the
+    // drag of all the points x of the rod, which move at omega x (x - pivot):
+    //     sum over the rod of  (x - pivot) x (omega x (x - pivot)) ds  =  r x (L v)
+    for (int n = 0; n < 200; n++) {
+        const Vec centre = random_vector(50), direction = random_unit_vector();
+        const double half_length = uniform(5, 40), length = 2 * half_length;
+        const Vec pivot = add(centre, scale(uniform(-1, 1) * half_length, direction));
+        const Vec impact = add(centre, scale(uniform(-1, 1) * half_length, direction));
+        const Vec velocity = random_vector(1.0);
 
-    FibreRotation rotation = rotate_fibre_about_pivot(centre, centre, impact, force, half_length, stickiness);
-    CHECK(rotation.rotated);
-    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), 0, std::sin(angle)), TOL);
+        const Vec omega = angular_velocity_about_pivot(pivot, centre, impact, velocity, half_length);
 
-    // fibre along z, force +x applied at z = -8: the negative end moves towards +x
-    rotation = rotate_fibre_about_pivot(centre, centre, vec(0, 0, -8), vec(0.5, 0, 0), half_length, stickiness);
-    CHECK(rotation.rotated);
-    CHECK(same_axis(rotation.orientation, vec(-std::sin(angle), 0, std::cos(angle)), TOL));
+        const int pieces = 2000;
+        const double ds = length / pieces;
+        Vec drag_torque = vec(0, 0, 0);
+        for (int i = 0; i < pieces; i++) {
+            const Vec x = sub(add(centre, scale(-half_length + (i + 0.5) * ds, direction)), pivot);
+            drag_torque = add(drag_torque, scale(ds, cross(x, cross(omega, x))));
+        }
+        const Vec applied_torque = cross(sub(impact, pivot), scale(length, velocity));
+        CHECK_VEC_NEAR(drag_torque, applied_torque, 1e-5 * (1 + norm(applied_torque)));
+    }
 }
 
-static void free_fibre_oblique_force()
+static void no_angular_velocity_without_torque()
 {
-    // the force (1, 2, 2) at x = +6 has the perpendicular part (0, 2, 2):
-    // rotation of 6 * sqrt(8) * stickiness / (L^2/12) towards (0, 1, 1)/sqrt(2)
-    const Vec centre = vec(0, 0, 0), impact = vec(6, 0, 0), force = vec(1, 2, 2);
-    const double half_length = 12, stickiness = 0.8;
-    const double angle = stickiness * 6 * std::sqrt(8.0) / (24.0 * 24.0 / 12);
-
-    const FibreRotation rotation = rotate_fibre_about_pivot(centre, centre, impact, force, half_length, stickiness);
-    CHECK(rotation.rotated);
-    const double s = std::sin(angle) / std::sqrt(2.0);
-    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), s, s), TOL);
+    const Vec centre = vec(1, 2, 3), direction = unit(vec(1, 2, -2));
+    const Vec impact = add(centre, scale(4, direction));
+    const Vec crosslink = add(centre, scale(-6, direction));
+    // cell at the pivot
+    CHECK_NEAR(norm(angular_velocity_about_pivot(centre, centre, centre, vec(0, 1, 0), 10)), 0.0, TOL);
+    CHECK_NEAR(norm(angular_velocity_about_pivot(crosslink, centre, crosslink, vec(0, 1, 0), 10)), 0.0, TOL);
+    // cell moving along the fibre
+    CHECK_NEAR(norm(angular_velocity_about_pivot(centre, centre, impact, scale(2, direction), 10)), 0.0, TOL);
+    CHECK_NEAR(norm(angular_velocity_about_pivot(crosslink, centre, impact, scale(-2, direction), 10)), 0.0, TOL);
+    // cell at rest
+    CHECK_NEAR(norm(angular_velocity_about_pivot(centre, centre, impact, vec(0, 0, 0), 10)), 0.0, TOL);
 }
 
-static void rotation_properties_in_3D()
+static void angular_velocities_of_several_cells_add_up()
+{
+    const Vec centre = vec(0, 0, 0);
+    // two cells dragging the two ends in the same direction: no rotation
+    Vec total = add(angular_velocity_about_pivot(centre, centre, vec(8, 0, 0), vec(0, 0.5, 0), 10),
+                    angular_velocity_about_pivot(centre, centre, vec(-8, 0, 0), vec(0, 0.5, 0), 10));
+    CHECK_NEAR(norm(total), 0.0, TOL);
+    // two cells dragging the two ends in opposite directions: twice the rotation
+    total = add(angular_velocity_about_pivot(centre, centre, vec(8, 0, 0), vec(0, 0.5, 0), 10),
+                angular_velocity_about_pivot(centre, centre, vec(-8, 0, 0), vec(0, -0.5, 0), 10));
+    CHECK_VEC_NEAR(total, vec(0, 0, 0.24), TOL);
+
+    // linear in the velocity and in the lever arm
+    for (int n = 0; n < 200; n++) {
+        const Vec direction = random_unit_vector(), pivot = random_vector(50);
+        const double half_length = uniform(5, 40);
+        const Vec fibre_centre = add(pivot, scale(uniform(-1, 1) * half_length, direction));
+        const Vec impact = add(pivot, scale(uniform(-10, 10), direction));
+        const Vec v1 = random_vector(1.0), v2 = random_vector(1.0);
+        const double a = uniform(-2, 2);
+
+        const Vec w1 = angular_velocity_about_pivot(pivot, fibre_centre, impact, v1, half_length);
+        const Vec w2 = angular_velocity_about_pivot(pivot, fibre_centre, impact, v2, half_length);
+        CHECK_VEC_NEAR(angular_velocity_about_pivot(pivot, fibre_centre, impact, add(v1, scale(a, v2)), half_length),
+                       add(w1, scale(a, w2)), 1e-10);
+        const Vec twice_as_far = add(pivot, scale(2, sub(impact, pivot)));
+        CHECK_VEC_NEAR(angular_velocity_about_pivot(pivot, fibre_centre, twice_as_far, v1, half_length), scale(2, w1), 1e-10);
+    }
+}
+
+static void angular_velocity_properties_in_3D()
 {
     for (int n = 0; n < 1000; n++) {
         const Vec centre = random_vector(50), direction = random_unit_vector();
-        const double half_length = uniform(5, 40), stickiness = uniform(0.1, 2);
-        double abscissa = uniform(-half_length, half_length);
-        if (std::fabs(abscissa) < 0.01) {
-            abscissa = 0.01;
-        }
-        const Vec impact = add(centre, scale(abscissa, direction));
-        const Vec lever = sub(impact, centre);
-        // perpendicular and parallel parts of the force, chosen so that the angle is in (0.001, 0.5)
-        const double angle = uniform(0.001, 0.5);
-        const Vec perpendicular = random_perpendicular(direction);
-        const double length = 2 * half_length;
-        const double magnitude = angle * (length * length / 12) / (stickiness * std::fabs(abscissa));
-        const Vec force = add(scale(magnitude, perpendicular), scale(uniform(-3, 3), direction));
-
-        const FibreRotation rotation = rotate_fibre_about_pivot(centre, centre, impact, force, half_length, stickiness);
-        CHECK(rotation.rotated);
-        const Vec& orientation = rotation.orientation;
-
-        // the orientation is a unit vector
-        CHECK_NEAR(norm(orientation), 1.0, TOL);
-
-        // the angle between the old and new axes is the documented one
-        CHECK_NEAR(expected_angle(lever, force, half_length, stickiness), angle, 1e-10);
-        const Vec old_direction = unit(lever);
-        CHECK_NEAR(std::atan2(norm(cross(old_direction, orientation)), dot(old_direction, orientation)), angle, 1e-10);
-
-        // the fibre rotates in the plane of the lever arm and the force (about the torque) ...
-        const Vec torque = cross(lever, force);
-        CHECK_NEAR(dot(orientation, unit(torque)), 0.0, 1e-10);
-        // ... in the direction given by the right hand rule: the impact point follows the force
-        CHECK(dot(cross(old_direction, orientation), torque) > 0);
-        CHECK(dot(sub(orientation, old_direction), force) > 0);
-
-        // it is the rotation by `angle` about the torque
-        CHECK_VEC_NEAR(orientation, rotate(old_direction, unit(torque), angle), 1e-10);
-
-        // a free fibre rotates about its centre, which does not move
-        CHECK_VEC_NEAR(rotation.centre, centre, TOL);
-    }
-}
-
-static void force_along_the_fibre_does_not_change_the_rotation()
-{
-    for (int n = 0; n < 200; n++) {
-        const Vec centre = random_vector(50), direction = random_unit_vector();
         const double half_length = uniform(5, 40);
-        const Vec impact = add(centre, scale(uniform(0.2, 1) * half_length, direction));
-        const Vec force = scale(uniform(0.1, 1), random_perpendicular(direction));
+        const Vec pivot = add(centre, scale(uniform(-1, 1) * half_length, direction));
+        const Vec impact = add(centre, scale(uniform(-1, 1) * half_length, direction));
+        const Vec lever = sub(impact, pivot);
+        const Vec velocity = random_vector(1.0);
+        const Vec omega = angular_velocity_about_pivot(pivot, centre, impact, velocity, half_length);
 
-        const FibreRotation reference = rotate_fibre_about_pivot(centre, centre, impact, force, half_length, 1.0);
-        const FibreRotation other = rotate_fibre_about_pivot(centre, centre, impact,
-                                                             add(force, scale(uniform(-5, 5), direction)), half_length, 1.0);
-        CHECK(reference.rotated && other.rotated);
-        CHECK_VEC_NEAR(other.orientation, reference.orientation, 1e-10);
+        // perpendicular to the fibre and to the velocity of the cell
+        CHECK_NEAR(dot(omega, direction), 0.0, 1e-10);
+        CHECK_NEAR(dot(omega, velocity), 0.0, 1e-10);
+        // right hand rule: the point of the fibre touched by the cell follows the cell
+        CHECK(dot(cross(omega, lever), velocity) >= 0);
+        // the velocity of the cell along the fibre has no effect
+        CHECK_VEC_NEAR(angular_velocity_about_pivot(pivot, centre, impact, add(velocity, scale(uniform(-5, 5), direction)), half_length),
+                       omega, 1e-10);
+
+        // same result in another frame
+        const Vec k = random_unit_vector(), shift = random_vector(100);
+        const double angle = uniform(-PI, PI);
+        CHECK_VEC_NEAR(angular_velocity_about_pivot(add(rotate(pivot, k, angle), shift), add(rotate(centre, k, angle), shift),
+                                                    add(rotate(impact, k, angle), shift), rotate(velocity, k, angle), half_length),
+                       rotate(omega, k, angle), 1e-10);
     }
 }
 
-static void no_rotation_without_torque()
-{
-    const Vec centre = vec(1, 2, 3), direction = unit(vec(1, 2, -2));
-    const double half_length = 10;
-    const Vec impact = add(centre, scale(4, direction));
+// ------------------------------------------------- rotation of a fibre
+// rotate_fibre_about_pivot(pivot, centre, orientation, rotation)
 
-    // force applied at the pivot
-    CHECK(!rotate_fibre_about_pivot(centre, centre, centre, vec(0, 1, 0), half_length, 1.0).rotated);
-    // force along the fibre
-    CHECK(!rotate_fibre_about_pivot(centre, centre, impact, scale(2, direction), half_length, 1.0).rotated);
-    CHECK(!rotate_fibre_about_pivot(centre, centre, impact, scale(-2, direction), half_length, 1.0).rotated);
-    // no force
-    CHECK(!rotate_fibre_about_pivot(centre, centre, impact, vec(0, 0, 0), half_length, 1.0).rotated);
-    // fibre which does not stick to the cell
-    CHECK(!rotate_fibre_about_pivot(centre, centre, impact, vec(0, 1, 0), half_length, 0.0).rotated);
+static void rotation_closed_forms()
+{
+    const Vec origin = vec(0, 0, 0);
+    const double angle = 0.3;
+    // fibre along x rotated about +z: anticlockwise in the xy plane
+    FibreRotation rotation = rotate_fibre_about_pivot(origin, origin, vec(1, 0, 0), vec(0, 0, angle));
+    CHECK(rotation.rotated);
+    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), std::sin(angle), 0), TOL);
+    CHECK_VEC_NEAR(rotation.centre, origin, TOL);
+
+    // about -y: the positive end rises towards +z
+    rotation = rotate_fibre_about_pivot(origin, origin, vec(1, 0, 0), vec(0, -angle, 0));
+    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), 0, std::sin(angle)), TOL);
+
+    // a third of a turn about (1,1,1) maps x to y
+    rotation = rotate_fibre_about_pivot(origin, origin, vec(1, 0, 0), scale(2 * PI / 3, unit(vec(1, 1, 1))));
+    CHECK_VEC_NEAR(rotation.orientation, vec(0, 1, 0), TOL);
+
+    // fibre from (0,0,0) to (20,0,0) hinged at the origin, rotated about +z then about -y
+    rotation = rotate_fibre_about_pivot(origin, vec(10, 0, 0), vec(1, 0, 0), vec(0, 0, angle));
+    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), std::sin(angle), 0), TOL);
+    CHECK_VEC_NEAR(rotation.centre, vec(10 * std::cos(angle), 10 * std::sin(angle), 0), TOL);
+    rotation = rotate_fibre_about_pivot(origin, vec(10, 0, 0), vec(1, 0, 0), vec(0, -angle, 0));
+    CHECK_VEC_NEAR(rotation.centre, vec(10 * std::cos(angle), 0, 10 * std::sin(angle)), TOL);
 }
 
-static void angle_is_proportional_to_stickiness_force_and_lever()
+static void rotation_keeps_the_sign_of_the_orientation()
 {
-    const Vec centre = vec(0, 0, 0), force = vec(0, 0.3, 0.4); // norm 0.5, perpendicular to x
-    const double half_length = 15; // L^2/12 = 75
-    struct Case { double lever, stickiness, force_scale, angle; };
-    const Case cases[] = {
-        {5, 1.0, 1.0, 5 * 0.5 / 75.0},
-        {10, 1.0, 1.0, 10 * 0.5 / 75.0},
-        {5, 2.0, 1.0, 2 * 5 * 0.5 / 75.0},
-        {5, 1.0, 3.0, 3 * 5 * 0.5 / 75.0},
-        {-5, 0.5, 2.0, 5 * 0.5 / 75.0},
-    };
-    for (unsigned int i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-        const Vec impact = vec(cases[i].lever, 0, 0);
-        const FibreRotation rotation = rotate_fibre_about_pivot(centre, centre, impact,
-                                                                scale(cases[i].force_scale, force), half_length, cases[i].stickiness);
+    // the same fibre described by the opposite orientation gives the opposite orientation
+    const Vec origin = vec(0, 0, 0);
+    const FibreRotation rotation = rotate_fibre_about_pivot(origin, origin, vec(-1, 0, 0), vec(0, 0, 0.3));
+    CHECK_VEC_NEAR(rotation.orientation, vec(-std::cos(0.3), -std::sin(0.3), 0), TOL);
+
+    for (int n = 0; n < 200; n++) {
+        const Vec pivot = random_vector(50), centre = random_vector(50), orientation = random_unit_vector();
+        const Vec turn = scale(uniform(0.001, 1.5), random_unit_vector());
+        const FibreRotation a = rotate_fibre_about_pivot(pivot, centre, orientation, turn);
+        const FibreRotation b = rotate_fibre_about_pivot(pivot, centre, scale(-1, orientation), turn);
+        CHECK_VEC_NEAR(b.orientation, scale(-1, a.orientation), 1e-10);
+        CHECK_VEC_NEAR(b.centre, a.centre, 1e-9);
+        CHECK(dot(a.orientation, orientation) > 0); // less than a quarter turn
+    }
+}
+
+static void rotation_is_rigid()
+{
+    for (int n = 0; n < 1000; n++) {
+        const Vec centre = random_vector(50), orientation = random_unit_vector();
+        const double half_length = uniform(5, 40);
+        // pivot anywhere on the fibre, on either side of the centre
+        const double abscissa = uniform(-1, 1) * half_length;
+        const Vec pivot = add(centre, scale(abscissa, orientation));
+        // any rotation vector, not necessarily perpendicular to the fibre
+        const Vec axis = random_unit_vector();
+        const double angle = uniform(0.001, PI);
+
+        const FibreRotation rotation = rotate_fibre_about_pivot(pivot, centre, orientation, scale(angle, axis));
         CHECK(rotation.rotated);
-        const Vec old_direction = unit(impact);
-        CHECK_NEAR(std::acos(dot(old_direction, rotation.orientation)), cases[i].angle, 1e-10);
+        CHECK_NEAR(norm(rotation.orientation), 1.0, TOL);
+        CHECK_VEC_NEAR(rotation.orientation, rotate(orientation, axis, angle), 1e-10);
+        CHECK_VEC_NEAR(rotation.centre, add(pivot, rotate(sub(centre, pivot), axis, angle)), 1e-9);
+
+        // the pivot stays at the same place on the fibre
+        const Vec centre_to_pivot = sub(pivot, rotation.centre);
+        CHECK_NEAR(dot(centre_to_pivot, rotation.orientation), abscissa, 1e-9);
+        CHECK_NEAR(norm(cross(centre_to_pivot, rotation.orientation)), 0.0, 1e-9);
+    }
+}
+
+static void rotation_about_the_fibre_axis_changes_nothing()
+{
+    for (int n = 0; n < 100; n++) {
+        const Vec centre = random_vector(50), orientation = random_unit_vector();
+        const Vec pivot = add(centre, scale(uniform(-20, 20), orientation));
+        const FibreRotation rotation = rotate_fibre_about_pivot(pivot, centre, orientation, scale(uniform(-3, 3), orientation));
+        if (rotation.rotated) {
+            CHECK_VEC_NEAR(rotation.orientation, orientation, 1e-10);
+            CHECK_VEC_NEAR(rotation.centre, centre, 1e-9);
+        }
+    }
+}
+
+static void no_rotation_for_a_zero_rotation_vector()
+{
+    CHECK(!rotate_fibre_about_pivot(vec(0, 0, 0), vec(1, 2, 3), vec(1, 0, 0), vec(0, 0, 0)).rotated);
+    CHECK(!rotate_fibre_about_pivot(vec(0, 0, 0), vec(1, 2, 3), vec(1, 0, 0), vec(0, 1e-18, 0)).rotated);
+}
+
+static void rotation_in_small_steps_equals_one_rotation()
+{
+    // an angular velocity applied during dt in N time steps of dt/N gives the same fibre
+    for (int n = 0; n < 100; n++) {
+        const Vec pivot = random_vector(50), orientation = random_unit_vector();
+        const Vec centre = add(pivot, scale(uniform(-20, 20), orientation));
+        const Vec turn = scale(uniform(0.01, 2), random_unit_vector());
+
+        const FibreRotation once = rotate_fibre_about_pivot(pivot, centre, orientation, turn);
+
+        const int steps = 100;
+        Vec stepped_centre = centre, stepped_orientation = orientation;
+        for (int i = 0; i < steps; i++) {
+            const FibreRotation step = rotate_fibre_about_pivot(pivot, stepped_centre, stepped_orientation, scale(1.0 / steps, turn));
+            CHECK(step.rotated);
+            stepped_centre = step.centre;
+            stepped_orientation = step.orientation;
+        }
+        CHECK_VEC_NEAR(stepped_orientation, once.orientation, 1e-9);
+        CHECK_VEC_NEAR(stepped_centre, once.centre, 1e-8);
     }
 }
 
@@ -398,149 +474,131 @@ static void rotation_in_the_xy_plane_matches_the_2D_rotation()
 {
     for (int n = 0; n < 500; n++) {
         const double phi = uniform(-PI, PI);
-        const Vec centre = vec(uniform(-50, 50), uniform(-50, 50), 0);
-        const Vec direction = vec(std::cos(phi), std::sin(phi), 0);
-        const double half_length = uniform(5, 40), stickiness = uniform(0.1, 2);
-        double abscissa = uniform(-half_length, half_length);
-        if (std::fabs(abscissa) < 0.01) {
-            abscissa = 0.01;
-        }
-        const Vec impact = add(centre, scale(abscissa, direction));
-        const Vec force = vec(uniform(-0.5, 0.5), uniform(-0.5, 0.5), 0);
-        const Vec lever = sub(impact, centre);
+        const Vec orientation = vec(std::cos(phi), std::sin(phi), 0);
+        const Vec pivot = vec(uniform(-50, 50), uniform(-50, 50), 0);
+        const Vec centre = add(pivot, scale(uniform(-20, 20), orientation));
+        const double angle = uniform(-1.5, 1.5); // signed angle about +z
 
-        const FibreRotation rotation = rotate_fibre_about_pivot(centre, centre, impact, force, half_length, stickiness);
+        const FibreRotation rotation = rotate_fibre_about_pivot(pivot, centre, orientation, vec(0, 0, angle));
+        CHECK(rotation.rotated);
         if (!rotation.rotated) {
             continue;
         }
-        // 2D: signed angle from the z component of the torque, rotation matrix [c -s; s c]
-        const double torque_z = lever[0] * force[1] - lever[1] * force[0];
-        const double length = 2 * half_length;
-        const double angle = stickiness * torque_z / (length * length / 12);
-        const Vec old_direction = unit(lever);
-        const Vec expected = vec(old_direction[0] * std::cos(angle) - old_direction[1] * std::sin(angle),
-                                 old_direction[0] * std::sin(angle) + old_direction[1] * std::cos(angle), 0);
-
-        CHECK_NEAR(rotation.orientation[2], 0.0, 0.0); // stays exactly in the plane
-        CHECK_NEAR(rotation.centre[2], 0.0, 0.0);
-        CHECK_VEC_NEAR(rotation.orientation, expected, 1e-10);
+        // 2D rotation matrix [c -s; s c]
+        const double c = std::cos(angle), s = std::sin(angle);
+        const Vec arm = sub(centre, pivot);
+        CHECK_VEC_NEAR(rotation.orientation, vec(orientation[0] * c - orientation[1] * s, orientation[0] * s + orientation[1] * c, 0), 1e-10);
+        CHECK_VEC_NEAR(rotation.centre, add(pivot, vec(arm[0] * c - arm[1] * s, arm[0] * s + arm[1] * c, 0)), 1e-9);
+        // stays exactly in the plane
+        CHECK(rotation.orientation[2] == 0.0);
+        CHECK(rotation.centre[2] == 0.0);
     }
 }
 
 static void rotation_does_not_depend_on_the_frame()
 {
     for (int n = 0; n < 500; n++) {
-        const Vec centre = random_vector(50), direction = random_unit_vector();
-        const double half_length = uniform(5, 40), stickiness = uniform(0.1, 2);
-        const Vec pivot = add(centre, scale(uniform(0, 1) * half_length, direction));
-        const Vec impact = add(centre, scale(uniform(-1, 0) * half_length, direction));
-        const Vec force = random_vector(0.3);
+        const Vec pivot = random_vector(50), centre = random_vector(50), orientation = random_unit_vector();
+        const Vec turn = scale(uniform(0.001, 2), random_unit_vector());
         const Vec k = random_unit_vector(), shift = random_vector(100);
         const double angle = uniform(-PI, PI);
 
-        const FibreRotation reference = rotate_fibre_about_pivot(pivot, centre, impact, force, half_length, stickiness);
-        const FibreRotation moved = rotate_fibre_about_pivot(add(rotate(pivot, k, angle), shift),
-                                                             add(rotate(centre, k, angle), shift),
-                                                             add(rotate(impact, k, angle), shift),
-                                                             rotate(force, k, angle), half_length, stickiness);
-        CHECK(reference.rotated == moved.rotated);
-        if (reference.rotated && moved.rotated) {
-            CHECK_VEC_NEAR(moved.orientation, rotate(reference.orientation, k, angle), 1e-9);
-            CHECK_VEC_NEAR(moved.centre, add(rotate(reference.centre, k, angle), shift), 1e-9);
-        }
+        const FibreRotation reference = rotate_fibre_about_pivot(pivot, centre, orientation, turn);
+        const FibreRotation moved = rotate_fibre_about_pivot(add(rotate(pivot, k, angle), shift), add(rotate(centre, k, angle), shift),
+                                                             rotate(orientation, k, angle), rotate(turn, k, angle));
+        CHECK(reference.rotated && moved.rotated);
+        CHECK_VEC_NEAR(moved.orientation, rotate(reference.orientation, k, angle), 1e-9);
+        CHECK_VEC_NEAR(moved.centre, add(rotate(reference.centre, k, angle), shift), 1e-9);
     }
 }
 
-// ------------------------------------------- rotation of a crosslinked fibre
-// (the pivot is the crosslink point, anywhere on the fibre)
+// ------------------------------------- a cell rotating a fibre in one time step
+// as in PhysiMeSS_Fibre: rotation vector = fibre_sticky * dt * sum of the angular velocities
 
-// checks that the result is the rigid rotation of the fibre about the pivot
-static void check_rigid_rotation_about_pivot( const Vec& pivot, const Vec& centre, const Vec& impact,
-                                              const Vec& force, double half_length, double stickiness )
+static FibreRotation cell_rotates_fibre( const Vec& pivot, const Vec& centre, const Vec& orientation, const Vec& impact,
+                                         const Vec& velocity, double half_length, double stickiness, double dt )
 {
-    const FibreRotation rotation = rotate_fibre_about_pivot(pivot, centre, impact, force, half_length, stickiness);
+    const Vec omega = angular_velocity_about_pivot(pivot, centre, impact, velocity, half_length);
+    return rotate_fibre_about_pivot(pivot, centre, orientation, scale(stickiness * dt, omega));
+}
+
+static void free_fibre_dragged_by_a_cell()
+{
+    const Vec centre = vec(0, 0, 0), orientation = vec(1, 0, 0);
+    const double half_length = 10, stickiness = 2.0, dt = 0.1;
+    const double angle = stickiness * dt * 0.12;
+
+    // towards +y at the positive end: anticlockwise
+    FibreRotation rotation = cell_rotates_fibre(centre, centre, orientation, vec(8, 0, 0), vec(0, 0.5, 0), half_length, stickiness, dt);
     CHECK(rotation.rotated);
-    if (!rotation.rotated) {
-        return;
-    }
-    const Vec lever = sub(impact, pivot);
-    const Vec axis = unit(cross(lever, force));
-    const double angle = expected_angle(lever, force, half_length, stickiness);
+    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), std::sin(angle), 0), TOL);
+    CHECK_VEC_NEAR(rotation.centre, centre, TOL);
 
-    // the fibre axis is rotated by `angle` about the torque
-    CHECK_NEAR(norm(rotation.orientation), 1.0, TOL);
-    CHECK_VEC_NEAR(rotation.orientation, rotate(unit(lever), axis, angle), 1e-10);
+    // towards +y at the negative end: clockwise, and the orientation is not flipped
+    rotation = cell_rotates_fibre(centre, centre, orientation, vec(-8, 0, 0), vec(0, 0.5, 0), half_length, stickiness, dt);
+    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), -std::sin(angle), 0), TOL);
 
-    // the centre is rotated about the pivot like the rest of the fibre
-    CHECK_VEC_NEAR(rotation.centre, add(pivot, rotate(sub(centre, pivot), axis, angle)), 1e-9);
-    // hence it stays at the same distance of the pivot, and the pivot stays on the fibre axis
-    const Vec pivot_to_centre = sub(rotation.centre, pivot);
-    CHECK_NEAR(norm(pivot_to_centre), norm(sub(centre, pivot)), 1e-9);
-    CHECK_NEAR(norm(cross(pivot_to_centre, rotation.orientation)), 0.0, 1e-9);
+    // towards +z at the positive end: out of the plane
+    rotation = cell_rotates_fibre(centre, centre, orientation, vec(8, 0, 0), vec(0, 0, 0.5), half_length, stickiness, dt);
+    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), 0, std::sin(angle)), TOL);
+
+    // half the time step, half the angle; no stickiness, no rotation
+    rotation = cell_rotates_fibre(centre, centre, orientation, vec(8, 0, 0), vec(0, 0.5, 0), half_length, stickiness, dt / 2);
+    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle / 2), std::sin(angle / 2), 0), TOL);
+    CHECK(!cell_rotates_fibre(centre, centre, orientation, vec(8, 0, 0), vec(0, 0.5, 0), half_length, 0.0, dt).rotated);
 }
 
-static void fibre_hinged_at_one_end()
+static void crosslinked_fibre_dragged_by_a_cell()
 {
-    // fibre from (0,0,0) to (20,0,0) crosslinked at the origin, pushed towards +y at x = 15
-    const Vec pivot = vec(0, 0, 0), centre = vec(10, 0, 0), impact = vec(15, 0, 0), force = vec(0, 0.4, 0);
-    const double half_length = 10, stickiness = 1.0;
-    const double angle = 15 * 0.4 / (400.0 / 12); // 0.18 rad
+    const double half_length = 10, stickiness = 2.0, dt = 0.1;
 
-    const FibreRotation rotation = rotate_fibre_about_pivot(pivot, centre, impact, force, half_length, stickiness);
+    // fibre from (0,0,0) to (20,0,0) hinged at the origin, dragged towards +y at x = 15
+    double angle = stickiness * dt * 15 * 0.4 / (400.0 / 3);
+    FibreRotation rotation = cell_rotates_fibre(vec(0, 0, 0), vec(10, 0, 0), vec(1, 0, 0), vec(15, 0, 0), vec(0, 0.4, 0),
+                                                half_length, stickiness, dt);
     CHECK(rotation.rotated);
     CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), std::sin(angle), 0), TOL);
     CHECK_VEC_NEAR(rotation.centre, vec(10 * std::cos(angle), 10 * std::sin(angle), 0), TOL);
 
-    // same fibre pushed towards +z: it leaves the plane, hinged at the origin
-    const FibreRotation out_of_plane = rotate_fibre_about_pivot(pivot, centre, impact, vec(0, 0, 0.4), half_length, stickiness);
-    CHECK(out_of_plane.rotated);
-    CHECK_VEC_NEAR(out_of_plane.orientation, vec(std::cos(angle), 0, std::sin(angle)), TOL);
-    CHECK_VEC_NEAR(out_of_plane.centre, vec(10 * std::cos(angle), 0, 10 * std::sin(angle)), TOL);
-}
+    // same fibre dragged towards +z: it leaves the plane, hinged at the origin
+    rotation = cell_rotates_fibre(vec(0, 0, 0), vec(10, 0, 0), vec(1, 0, 0), vec(15, 0, 0), vec(0, 0, 0.4), half_length, stickiness, dt);
+    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), 0, std::sin(angle)), TOL);
+    CHECK_VEC_NEAR(rotation.centre, vec(10 * std::cos(angle), 0, 10 * std::sin(angle)), TOL);
 
-static void crosslinked_fibre_pushed_on_the_side_of_its_centre()
-{
-    for (int n = 0; n < 500; n++) {
-        const Vec centre = random_vector(50), direction = random_unit_vector();
-        const double half_length = uniform(5, 40);
-        // pivot at abscissa p < 0, impact at abscissa q > p + 0.1 on the side of the centre
-        const double p = uniform(-1, -0.05) * half_length;
-        const double q = uniform(p + 0.1, half_length);
-        const Vec pivot = add(centre, scale(p, direction)), impact = add(centre, scale(q, direction));
-        const Vec force = add(scale(uniform(0.05, 0.3), random_perpendicular(direction)), scale(uniform(-1, 1), direction));
-        check_rigid_rotation_about_pivot(pivot, centre, impact, force, half_length, uniform(0.1, 2));
-    }
-}
-
-static void crosslinked_fibre_pushed_on_the_side_opposite_to_its_centre()
-{
-    // fibre from (-10,0,0) to (10,0,0) crosslinked at x = -4, pushed towards +y at x = -9:
-    // clockwise rotation seen from +z, the centre (at 4 from the pivot) goes down
-    const double angle = 5 * 0.4 / (400.0 / 12); // 0.06 rad
-    const FibreRotation rotation = rotate_fibre_about_pivot(vec(-4, 0, 0), vec(0, 0, 0), vec(-9, 0, 0), vec(0, 0.4, 0), 10, 1.0);
+    // fibre from (-10,0,0) to (10,0,0) crosslinked at x = -4, dragged towards +y at x = -9, on the
+    // side of the crosslink opposite to the centre: clockwise, the centre (at 4 from the crosslink) goes down
+    angle = stickiness * dt * 5 * 0.4 / (100.0 / 3 + 16);
+    rotation = cell_rotates_fibre(vec(-4, 0, 0), vec(0, 0, 0), vec(1, 0, 0), vec(-9, 0, 0), vec(0, 0.4, 0), half_length, stickiness, dt);
     CHECK(rotation.rotated);
-    CHECK(same_axis(rotation.orientation, vec(std::cos(angle), -std::sin(angle), 0), TOL));
+    CHECK_VEC_NEAR(rotation.orientation, vec(std::cos(angle), -std::sin(angle), 0), TOL);
     CHECK_VEC_NEAR(rotation.centre, vec(-4 + 4 * std::cos(angle), -4 * std::sin(angle), 0), TOL);
-
-    for (int n = 0; n < 500; n++) {
-        const Vec centre = random_vector(50), direction = random_unit_vector();
-        const double half_length = uniform(5, 40);
-        // pivot at abscissa p in (-0.9, -0.1) half lengths, impact between the pivot and the negative end
-        const double p = uniform(-0.9, -0.1) * half_length;
-        const double q = uniform(-half_length, p - 0.05 * half_length);
-        const Vec pivot = add(centre, scale(p, direction)), impact = add(centre, scale(q, direction));
-        const Vec force = add(scale(uniform(0.05, 0.3), random_perpendicular(direction)), scale(uniform(-1, 1), direction));
-        check_rigid_rotation_about_pivot(pivot, centre, impact, force, half_length, uniform(0.1, 2));
-    }
 }
 
-static void crosslinked_fibre_without_torque()
+static void the_point_touched_by_the_cell_follows_the_cell()
 {
-    const Vec pivot = vec(-4, 0, 0), centre = vec(0, 0, 0);
-    // cell pushing exactly at the crosslink
-    CHECK(!rotate_fibre_about_pivot(pivot, centre, pivot, vec(0, 1, 0), 10, 1.0).rotated);
-    // cell pushing along the fibre
-    CHECK(!rotate_fibre_about_pivot(pivot, centre, vec(5, 0, 0), vec(1, 0, 0), 10, 1.0).rotated);
+    for (int n = 0; n < 1000; n++) {
+        const Vec centre = random_vector(50), orientation = random_unit_vector();
+        const double half_length = uniform(5, 40);
+        // free fibre, or crosslinked anywhere along its length
+        const Vec pivot = (n % 2 == 0) ? centre : add(centre, scale(uniform(-1, 1) * half_length, orientation));
+        const double abscissa = uniform(-1, 1) * half_length;
+        const Vec impact = add(centre, scale(abscissa, orientation));
+        if (norm(sub(impact, pivot)) < 0.1) {
+            continue;
+        }
+        const Vec velocity = add(scale(uniform(0.05, 0.5), random_perpendicular(orientation)), scale(uniform(-1, 1), orientation));
+
+        const FibreRotation rotation = cell_rotates_fibre(pivot, centre, orientation, impact, velocity, half_length, 1.0, 0.1);
+        CHECK(rotation.rotated);
+        if (!rotation.rotated) {
+            continue;
+        }
+        // the same material point of the fibre, after the rotation
+        const Vec new_impact = add(rotation.centre, scale(abscissa, rotation.orientation));
+        CHECK(dot(sub(new_impact, impact), velocity) > 0);
+        // it stays at the same distance from the pivot
+        CHECK_NEAR(norm(sub(new_impact, pivot)), norm(sub(impact, pivot)), 1e-9);
+    }
 }
 
 // ---------------------------------------------------------------- main
@@ -564,20 +622,23 @@ int main()
         TEST(nearest_point_is_on_the_fibre_and_is_the_nearest),
         TEST(nearest_point_does_not_depend_on_the_frame),
         TEST(nearest_point_of_a_fibre_of_zero_length),
-        TEST(free_fibre_pushed_at_its_positive_end_in_plane),
-        TEST(free_fibre_pushed_at_its_negative_end_in_plane),
-        TEST(free_fibre_pushed_out_of_plane),
-        TEST(free_fibre_oblique_force),
-        TEST(rotation_properties_in_3D),
-        TEST(force_along_the_fibre_does_not_change_the_rotation),
-        TEST(no_rotation_without_torque),
-        TEST(angle_is_proportional_to_stickiness_force_and_lever),
+        TEST(angular_velocity_of_a_free_fibre),
+        TEST(angular_velocity_of_a_crosslinked_fibre),
+        TEST(angular_velocity_balances_the_drag_along_the_fibre),
+        TEST(no_angular_velocity_without_torque),
+        TEST(angular_velocities_of_several_cells_add_up),
+        TEST(angular_velocity_properties_in_3D),
+        TEST(rotation_closed_forms),
+        TEST(rotation_keeps_the_sign_of_the_orientation),
+        TEST(rotation_is_rigid),
+        TEST(rotation_about_the_fibre_axis_changes_nothing),
+        TEST(no_rotation_for_a_zero_rotation_vector),
+        TEST(rotation_in_small_steps_equals_one_rotation),
         TEST(rotation_in_the_xy_plane_matches_the_2D_rotation),
         TEST(rotation_does_not_depend_on_the_frame),
-        TEST(fibre_hinged_at_one_end),
-        TEST(crosslinked_fibre_pushed_on_the_side_of_its_centre),
-        TEST(crosslinked_fibre_pushed_on_the_side_opposite_to_its_centre),
-        TEST(crosslinked_fibre_without_torque),
+        TEST(free_fibre_dragged_by_a_cell),
+        TEST(crosslinked_fibre_dragged_by_a_cell),
+        TEST(the_point_touched_by_the_cell_follows_the_cell),
     };
     const int number_of_tests = sizeof(tests) / sizeof(tests[0]);
 

@@ -90,13 +90,13 @@ fibre_length = 40.0 (microns)
 fibre_pushing = true
 ```
 
-* The xml file ```mymodel_rotating.xml``` with csv file ```snowplough.csv``` simulates a single cell rotating free/non-crosslinked fibres to access an attractant. By turning fibre rotating on (or off) you can control whether the cell can push fibres. Note the parameter ```fibre_sticky``` modulates how much a cell can rotate a fibre. Values less than 1.0 decrease how much the cell rotates the fibre per timestep and values greater than 1.0 increase how much the cell rotates the fibre per timestep.
+* The xml file ```mymodel_rotating.xml``` with csv file ```snowplough.csv``` simulates a single cell rotating free/non-crosslinked fibres to access an attractant. By turning fibre rotating on (or off) you can control whether the cell can push fibres. Note the parameter ```fibre_sticky``` modulates how much a cell can rotate a fibre. A cell in contact with a fibre drags it with its motility velocity: the fibre rotates about its centre, or about its crosslink point if it has one, at an angular velocity proportional to ```fibre_sticky```, which does not depend on the mechanics time step. With ```fibre_sticky``` set to 0 the fibre is not rotated; a fibre is harder to rotate about a crosslink far from its centre.
 
 Default parameters are:
 
 ```
 fibre_length = 40.0 (microns)
-fibre_sticky = 1.0
+fibre_sticky = 10.0
 fibre_rotation = true
 ```
 
