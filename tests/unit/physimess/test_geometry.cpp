@@ -110,6 +110,36 @@ static Vec random_perpendicular( const Vec& u )
     return unit(v);
 }
 
+// ------------------------------------------------- orientation of a fibre
+
+static void orientation_from_angles_closed_forms()
+{
+    CHECK_VEC_NEAR(orientation_from_angles(0, PI / 2), vec(1, 0, 0), TOL);
+    CHECK_VEC_NEAR(orientation_from_angles(PI / 2, PI / 2), vec(0, 1, 0), TOL);
+    CHECK_VEC_NEAR(orientation_from_angles(PI, PI / 2), vec(-1, 0, 0), TOL);
+    // along z whatever theta
+    CHECK_VEC_NEAR(orientation_from_angles(0, 0), vec(0, 0, 1), TOL);
+    CHECK_VEC_NEAR(orientation_from_angles(1.234, 0), vec(0, 0, 1), TOL);
+    CHECK_VEC_NEAR(orientation_from_angles(1.234, PI), vec(0, 0, -1), TOL);
+    // 45 degrees from the z axis, above the diagonal of the xy plane
+    CHECK_VEC_NEAR(orientation_from_angles(PI / 4, PI / 4), vec(0.5, 0.5, std::sqrt(0.5)), TOL);
+}
+
+static void orientation_from_angles_properties()
+{
+    for (int n = 0; n < 500; n++) {
+        const double theta = uniform(-PI, PI), phi = uniform(0.01, PI - 0.01);
+        const Vec orientation = orientation_from_angles(theta, phi);
+        CHECK_NEAR(norm(orientation), 1.0, TOL);
+        // phi is the angle from the z axis, theta the angle of the projection on the xy plane
+        CHECK_NEAR(std::acos(orientation[2]), phi, 1e-9);
+        CHECK_NEAR(std::atan2(orientation[1], orientation[0]), theta, 1e-9);
+        // with phi = pi/2: the orientation of 2D simulations
+        const Vec planar = orientation_from_angles(theta, PI / 2);
+        CHECK_VEC_NEAR(planar, vec(std::cos(theta), std::sin(theta), 0), TOL);
+    }
+}
+
 // ------------------------------------------------- nearest point on a fibre
 
 static void nearest_point_along_the_fibre()
@@ -780,6 +810,8 @@ struct Test
 int main()
 {
     const Test tests[] = {
+        TEST(orientation_from_angles_closed_forms),
+        TEST(orientation_from_angles_properties),
         TEST(nearest_point_along_the_fibre),
         TEST(nearest_point_beyond_the_ends),
         TEST(nearest_point_of_a_point_on_the_fibre),

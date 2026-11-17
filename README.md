@@ -106,7 +106,7 @@ fibre_rotation = true
 * The xml file ```mymodel_hinge.xml``` with csv file ```hinge.csv``` simulates two crosslinked fibres being rotated at their crosslink point (hinge) by a single cell in order for the cell to navigated towards an attractant. By turning fibre rotating on (or off)  and adjusting parameters you can control whether the cell successfully navigates towards the attractant.
 
 ### Examples in 3D
-In the following examples ```use_2D``` is set to false in the xml file: fibres are oriented, pushed and rotated in three dimensions. With anisotropic fibres, the orientation is set by the two angles ```fibre_angle``` (in the xy plane) and ```fibre_angle_phi``` (from the z axis).
+In the following examples ```use_2D``` is set to false in the xml file: fibres are oriented, pushed and rotated in three dimensions. With anisotropic fibres, the orientation is set by the two angles ```fibre_angle``` (in the xy plane) and ```fibre_angle_phi``` (from the z axis), in radians. When ```fibre_angle_phi``` is not defined, pi/2 is used: the fibres are in the xy plane. As in 2D, fibres of cell definitions named ```fibre_vertical``` and ```fibre_horizontal``` are always along y and x, whatever their angles.
 
 #### Cell_Fibre_Mechanics_3D
 The directory Cell_Fibre_Mechanics_3D contains the 3D counterparts of the cell-fibre mechanics examples.

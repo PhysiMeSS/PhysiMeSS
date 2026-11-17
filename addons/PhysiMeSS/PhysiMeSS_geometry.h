@@ -44,6 +44,23 @@ inline std::vector<double> cross( const std::vector<double>& a, const std::vecto
 }
 
 /*
+    Unit orientation of a fibre from its two angles, in radians:
+    theta, the angle from the x axis of its projection on the xy plane, and
+    phi, its angle from the z axis (spherical coordinates):
+        (cos(theta) sin(phi), sin(theta) sin(phi), cos(phi))
+    With phi = pi/2 the fibre is in the xy plane, at the angle theta used in
+    2D simulations.
+*/
+inline std::vector<double> orientation_from_angles( double theta, double phi )
+{
+    std::vector<double> orientation(3, 0.0);
+    orientation[0] = std::cos(theta) * std::sin(phi);
+    orientation[1] = std::sin(theta) * std::sin(phi);
+    orientation[2] = std::cos(phi);
+    return orientation;
+}
+
+/*
     Vector from the point of the fibre nearest to `point`, to `point`
     (so that nearest_point = point - displacement).
 

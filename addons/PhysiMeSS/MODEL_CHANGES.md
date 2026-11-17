@@ -24,8 +24,17 @@ crosslinks do not move (unchanged).
 *Contributed by Ambre Jaeger.*
 
 - **What.** With `use_2D` false, fibres are oriented, pushed and rotated in three dimensions.
-  Anisotropic fibres take their orientation from two angles: `fibre_angle` (in the xy plane) and
-  `fibre_angle_phi` (from the z axis). Crosslinks between fibres are detected in 3D.
+  Crosslinks between fibres are detected in 3D.
+- **What.** In 3D, anisotropic fibres take their orientation from two angles in radians:
+  `fibre_angle` (theta, in the xy plane, as in 2D) and `fibre_angle_phi` (phi, from the z axis):
+  `(cos(theta) sin(phi), sin(theta) sin(phi), cos(phi))`. Both are drawn from normal
+  distributions with the standard deviation `angle_normdist_sd`. When `fibre_angle_phi` is not
+  defined, pi/2 is used (fibres in the xy plane, as in 2D) and a warning is printed. The
+  intermediate 3D code silently used the first custom variable of the cell definition instead.
+  Isotropic fibres are uniformly distributed on the sphere.
+- **Unchanged.** Fibres of the cell definitions named `fibre_vertical` and `fibre_horizontal`
+  are along y and x whatever their angles, in 2D and in 3D. The maze, hinge, pushing and
+  rotating examples rely on these two names.
 - **What.** Fibres can be created at random until they fill a given fraction of the domain
   (`<fibres_from_file>` with `<enable>false</enable>` and `<relative_fibre_volume>`), instead of
   being read from the csv file.
@@ -196,8 +205,6 @@ crosslinks are first computed at the first mechanics step.
 ## Known limitations
 
 - Fibres named `fibre_vertical` and `fibre_horizontal` have a fixed orientation whatever the
-  configuration says (as in version 1.0.1).
-- 3D configurations with anisotropic fibres must define `fibre_angle_phi`; when it is missing,
-  the first custom variable is silently used instead.
+  configuration says (section 1).
 - Crosslinks are contacts recomputed at every step, and fibres with two or more crosslinks do not
   move (section 4).

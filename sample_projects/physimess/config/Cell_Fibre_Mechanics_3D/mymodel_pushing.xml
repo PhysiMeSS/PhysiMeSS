@@ -276,6 +276,7 @@
           <fibre_radius units="none" description="fibre radius">2.0</fibre_radius>
           <radius_normdist_sd units="microns" description="standard deviation of fibre radius">0.0</radius_normdist_sd>
           <fibre_angle units="none" desctription="angle of fibre direction">1.57</fibre_angle>
+          <fibre_angle_phi units="radians" description="angle of fibre orientation from the z axis, between 0 and pi">1.57</fibre_angle_phi>
           <angle_normdist_sd units="none" description="standard deviation of fibre angle">0.0</angle_normdist_sd>
         </custom_data>
       </cell_definition>

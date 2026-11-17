@@ -66,22 +66,33 @@ void PhysiMeSS_Fibre::assign_fibre_orientation()
     }
     else {
         if (this->custom_data["anisotropic_fibres"] > 0.5) {
+            // theta: angle in the xy plane, phi: angle from the z axis (in the xy plane when it is not defined)
+            static const double half_pi = 1.5707963267948966;
+            double mean_phi = half_pi;
+            const int phi_index = this->custom_data.find_variable_index("fibre_angle_phi");
+            if (phi_index >= 0) {
+                mean_phi = this->custom_data[phi_index];
+            }
+            else {
+                static bool warned = false;
+                if (!warned) {
+                    warned = true;
+                    std::cout << "Warning: custom data fibre_angle_phi is not defined for anisotropic fibres in a 3D simulation"
+                              << " (first found for " << this->type_name << "): using pi/2, fibres in the xy plane." << std::endl;
+                }
+            }
             double theta = PhysiCell::NormalRandom(this->custom_data["fibre_angle"], this->custom_data["angle_normdist_sd"]);
-            double phi = PhysiCell::NormalRandom(this->custom_data["fibre_angle_phi"], this->custom_data["angle_normdist_sd"]);
+            double phi = PhysiCell::NormalRandom(mean_phi, this->custom_data["angle_normdist_sd"]);
 
-            this->state.orientation[0] = std::cos(theta)*std::sin(phi);
-            this->state.orientation[1] = std::sin(theta)*std::sin(phi);
-            this->state.orientation[2] = std::cos(phi);
-            normalize(this->state.orientation);
+            this->state.orientation = PhysiMeSS_Geometry::orientation_from_angles(theta, phi);
         }
         else {
             this->state.orientation = PhysiCell::UniformOnUnitSphere();
         }
         
     }
-    //###########################################//
-    //   this bit a hack for PacMan and maze	 //
-    //###########################################//
+    // Fibres of the cell definitions named "fibre_vertical" and "fibre_horizontal" are
+    // along y and x, whatever their angles (used by the maze, hinge and mechanics examples)
     if (this->type_name == "fibre_vertical") {
         this->state.orientation[0] = 0.0;
         this->state.orientation[1] = 1.0;
@@ -92,7 +103,6 @@ void PhysiMeSS_Fibre::assign_fibre_orientation()
         this->state.orientation[1] = 0.0;
         this->state.orientation[2] = 0.0;
     }
-    //###########################################// 
 }
 
 void PhysiMeSS_Fibre::check_out_of_bounds(std::vector<double>& position)
