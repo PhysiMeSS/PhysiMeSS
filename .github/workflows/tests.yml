@@ -14,7 +14,7 @@ jobs:
         os: [
           {name: "Ubuntu", os: "ubuntu-latest", shell: "bash", compiler: "g++"},
           {name: "MacOS 15 (Intel)", os: "macos-15-intel", shell: "bash", compiler: "g++-14"},
-          {name: "MacOS 14 (M1)", os: "macos-14", shell: "bash", compiler: "g++-13"},
+          {name: "MacOS 15 (ARM)", os: "macos-15", shell: "bash", compiler: "g++-14"},
           {name: "Windows", os: "windows-latest", shell: "msys2", compiler: "g++"},
         ]
 
@@ -46,7 +46,7 @@ jobs:
         os: [
           {name: "Ubuntu", os: "ubuntu-latest", shell: "bash", compiler: "g++"},
           {name: "MacOS 15 (Intel)", os: "macos-15-intel", shell: "bash", compiler: "g++-14"},
-          {name: "MacOS 14 (M1)", os: "macos-14", shell: "bash", compiler: "g++-13"},
+          {name: "MacOS 15 (ARM)", os: "macos-15", shell: "bash", compiler: "g++-14"},
           {name: "Windows", os: "windows-latest", shell: "msys2", compiler: "g++"},
         ]
         projects: [
