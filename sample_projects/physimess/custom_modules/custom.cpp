@@ -180,8 +180,6 @@ void setup_tissue( void )
 	double Ymax = microenvironment.mesh.bounding_box[4]; 
 	double Zmax = microenvironment.mesh.bounding_box[5]; 
 	
-	std::cout << " x min :" << microenvironment.mesh.bounding_box[0] << " y min :" << microenvironment.mesh.bounding_box[1] << " z min :" << microenvironment.mesh.bounding_box[2] << std::endl;
-	std::cout << " x max :" << microenvironment.mesh.bounding_box[3] << " y max :" << microenvironment.mesh.bounding_box[4] << " z max :" << microenvironment.mesh.bounding_box[5] << std::endl;
 	if( default_microenvironment_options.simulate_2D == true )
 	{
 		Zmin = 0.0; 
@@ -197,8 +195,7 @@ void setup_tissue( void )
 		bool isFibreFromFile = true;
 		// new fibre related parameters and bools
 		isFibreFromFile = read_isFibreFromFile_status();
-		
-		std::cout << "Fibre from file: " << isFibreFromFile << std::endl;
+
 		for( int i=0; i < (*all_cells).size(); i++ ) {
 			
 			if (isFibre((*all_cells)[i])) {
@@ -292,42 +289,46 @@ void setup_tissue( void )
 	}
 	remove_physimess_out_of_bounds_fibres();
 	
-	//adding a part to remove fibres that overlap with cells initialize at time zero
-	for (auto cell: *all_cells)
+	// remove the fibres which overlap with cells at initialisation
+	// (collected first: deleting an agent modifies all_cells and the agent grid)
+	std::vector<Cell*> overlapping_fibres;
+	auto collect_overlapping_fibres = [&overlapping_fibres]( Cell* cell, const std::vector<Cell*>& candidates )
 	{
-		if (!isFibre(cell))
+		for (auto* neighbor: candidates)
 		{
-			for (auto* neighbor: cell->get_container()->agent_grid[cell->get_current_mechanics_voxel_index()])
-        	{
-				if(isFibre(neighbor))
-				{
-					std::vector<double> disp(3,0.0);
-					if (norm(static_cast<PhysiMeSS_Fibre*>(neighbor)->nearest_point_on_fibre(cell->position, disp)) < (*cell).phenotype.geometry.radius + static_cast<PhysiMeSS_Fibre*>(neighbor)->mRadius)
-					{
-						delete_cell(neighbor);
-					}
-				}
-			}
-			for (auto neighbor_voxel_index: cell->get_container()->underlying_mesh.moore_connected_voxel_indices[cell->get_current_mechanics_voxel_index()])
-        	{
-				if(!is_neighbor_voxel(cell, cell->get_container()->underlying_mesh.voxels[cell->get_current_mechanics_voxel_index()].center, cell->get_container()->underlying_mesh.voxels[neighbor_voxel_index].center, neighbor_voxel_index))
-					continue;
-			
-				for (auto* neighbor: cell->get_container()->agent_grid[neighbor_voxel_index])
-				{
-					if(isFibre(neighbor))
-					{
-						
-						std::vector<double> disp(3,0.0);
-						if (norm(static_cast<PhysiMeSS_Fibre*>(neighbor)->nearest_point_on_fibre(cell->position, disp)) < (*cell).phenotype.geometry.radius + static_cast<PhysiMeSS_Fibre*>(neighbor)->mRadius)
-						{
-							delete_cell(neighbor);
-						}
-						
-					}
-				}
+			if (!isFibre(neighbor))
+				continue;
+
+			PhysiMeSS_Fibre* fibre = static_cast<PhysiMeSS_Fibre*>(neighbor);
+			std::vector<double> disp(3,0.0);
+			if (norm(fibre->nearest_point_on_fibre(cell->position, disp)) < cell->phenotype.geometry.radius + fibre->mRadius
+				&& std::find(overlapping_fibres.begin(), overlapping_fibres.end(), neighbor) == overlapping_fibres.end())
+			{
+				overlapping_fibres.push_back(neighbor);
 			}
 		}
+	};
+
+	for (auto* cell: *all_cells)
+	{
+		if (isFibre(cell))
+			continue;
+
+		Cell_Container* container = cell->get_container();
+		int voxel_index = cell->get_current_mechanics_voxel_index();
+
+		collect_overlapping_fibres(cell, container->agent_grid[voxel_index]);
+		for (auto neighbor_voxel_index: container->underlying_mesh.moore_connected_voxel_indices[voxel_index])
+		{
+			if(!is_neighbor_voxel(cell, container->underlying_mesh.voxels[voxel_index].center, container->underlying_mesh.voxels[neighbor_voxel_index].center, neighbor_voxel_index))
+				continue;
+
+			collect_overlapping_fibres(cell, container->agent_grid[neighbor_voxel_index]);
+		}
+	}
+	for (auto* fibre: overlapping_fibres)
+	{
+		delete_cell(fibre);
 	}
 }
 

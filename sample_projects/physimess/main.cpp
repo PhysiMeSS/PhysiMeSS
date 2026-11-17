@@ -265,7 +265,7 @@ int main( int argc, char* argv[] )
 			}
 
 			// save SVG plot if it's time
-			if( PhysiCell_globals.current_time > PhysiCell_globals.next_SVG_save_time - 0.5 * diffusion_dt ) // Why substract the half of diffusion dt ? 
+			if( PhysiCell_globals.current_time > PhysiCell_globals.next_SVG_save_time - 0.5 * diffusion_dt )
 			{
 				if( PhysiCell_settings.enable_SVG_saves == true )
 				{	
