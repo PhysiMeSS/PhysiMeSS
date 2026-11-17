@@ -105,7 +105,11 @@ int main( int argc, char* argv[] )
 				output_folder = argv[i + 1];
 				OutputFromCommandLine = true;
 				std::cout << "output_folder is " << output_folder << std::endl;
+#if defined(_WIN32)
+				mkdir(output_folder.c_str());
+#else
 				mkdir(output_folder.c_str(), 0777);
+#endif
 				i++; // Skip the next argument
 			} else {
 				std::cerr << "Error: No output folder specified after " << argv[i] << std::endl;
