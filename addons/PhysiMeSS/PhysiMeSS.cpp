@@ -4,7 +4,8 @@
 #include <iterator> 
 
 
-static double last_update_time = -mechanics_dt;
+static double last_update_time = 0.0;
+static bool mechanics_initialized = false;
 
 void remove_physimess_out_of_bounds_fibres()
 {
@@ -135,9 +136,11 @@ void physimess_update_cell_velocity( Cell* pCell, Phenotype& phenotype, double d
 void physimess_mechanics( double dt ) 
 {    
     static double dt_tolerance = 0.001 * dt; 
-    if(fabs(((PhysiCell_globals.current_time - last_update_time)) - dt) < dt_tolerance)
+    // first call, or dt elapsed since the last update (whatever the value of dt)
+    if( !mechanics_initialized || PhysiCell_globals.current_time - last_update_time > dt - dt_tolerance )
     {
         last_update_time = PhysiCell_globals.current_time;
+        mechanics_initialized = true;
         
         //#pragma omp parallel for
         // This is not parallel because we are modifying the agend grid
