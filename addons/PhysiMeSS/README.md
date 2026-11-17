@@ -6,6 +6,9 @@ PhysiMeSS paper is available on Gigabyte : [https://gigabytejournal.com/articles
 
 DOI: [10.46471/gigabyte.136](https://doi.org/10.46471/gigabyte.136).
 
+## Code organisation
+The geometry of the cell-fibre interaction (nearest point on a fibre, rotation of a fibre about its centre or crosslink point) is in ```PhysiMeSS_geometry.h```. This header does not depend on PhysiCell, and is used in 2D and 3D simulations.
+
 ## Dedicated sample project
 PhysiMeSS comes with a dedicated sample project, called **physimess-sample**. To build it, go to the root directory and use : 
 

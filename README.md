@@ -23,7 +23,7 @@ This will load all the files and directories contained in ```./sample_projects/p
 The following example directories are populated in config directory once the **physimess-sample** project is loaded as above. The previous commands compiles and creates the .exe file by default named project in your working directory. To run the following example, you need to specify the location of .xml setting file populated in the config folder. You can as well overwrite the output folder of the simulation set in the .xml setting file directly from the command line. For instance in Linux, for the Fibre_Degradation_3D:
 
 ```
-./project -s "./config/Fibre_Degradation_3D/PhysiCell_settings.xml" -o "./output/Fibre_Degradation"
+./project -s "./config/Fibre_Degradation_3D/mymodel_fibredegradation3D.xml" -o "./output/Fibre_Degradation_3D"
 ```
 After ```-o``` or ```--output```: specify the path to the desired output folder. If not specified the output folder is the one specified in your setting file
 After ```-s``` or ```--settings```: specify the path to your setting .xml file. If not specified the default is ```./config/PhysiCell_settings.xml```
@@ -100,6 +100,39 @@ fibre_rotation = true
 * The xml file ```mymodel_hinge.xml``` with csv file ```hinge.csv``` simulates two crosslinked fibres being rotated at their crosslink point (hinge) by a single cell in order for the cell to navigated towards an attractant. By turning fibre rotating on (or off)  and adjusting parameters you can control whether the cell successfully navigates towards the attractant.
 
 ### Examples in 3D
+In the following examples ```use_2D``` is set to false in the xml file: fibres are oriented, pushed and rotated in three dimensions. With anisotropic fibres, the orientation is set by the two angles ```fibre_angle``` (in the xy plane) and ```fibre_angle_phi``` (from the z axis).
+
+#### Cell_Fibre_Mechanics_3D
+The directory Cell_Fibre_Mechanics_3D contains the 3D counterparts of the cell-fibre mechanics examples.
+
+* The xml file ```mymodel_pushing.xml``` with csv file ```push.csv``` simulates a single cell pushing a free fibre on its way to an attractant.
+
+* The xml file ```mymodel_rotating.xml``` with csv file ```rotate.csv``` simulates a single cell rotating a free fibre on its way to an attractant.
+
+* The xml files ```mymodel_squish.xml``` and ```mymodel_squish_2.xml``` with csv files ```squish.csv``` and ```squish_2.csv``` simulate two cells moving in opposite directions, each towards its own attractant, with a single fibre between them which they both push and rotate.
+
+* The xml file ```barrier_fibre.xml``` with csv file ```barrier.csv``` simulates a single cell moving towards an attractant through a barrier of fibres placed in a 3D domain. Fibre pushing and rotation are off by default.
+
+#### Fibre_Degradation_3D
+The directory Fibre_Degradation_3D contains examples of a growing mass of cells within a 3D mesh of fibres. The cell is placed from the csv file ```cells.csv``` while the fibres are created at random: in the ```initial_conditions``` of the xml file,
+
+```
+<fibres_from_file>
+    <enable>false</enable>
+    <ID>1</ID>
+    <relative_fibre_volume>0.001</relative_fibre_volume>
+</fibres_from_file>
+```
+
+creates fibres of the cell definition ```ID``` until they occupy the fraction ```relative_fibre_volume``` of the domain. When ```enable``` is true (the default when the element is absent), fibres are instead read from the csv file as in the 2D examples. Fibres which overlap a cell at initialisation are removed.
+
+* The xml file ```mymodel_fibredegradation3D.xml``` is the base example: a dense mesh (```relative_fibre_volume``` of 0.0094) of loosely aligned fibres of length 50 microns, degraded by non motile cells.
+
+* The xml file ```deg3D_dlow_ani.xml``` has longer (100 microns), more aligned fibres at low density (```relative_fibre_volume``` of 0.001).
+
+* The xml file ```deg3Dmove_dlow_ani.xml``` is the same with motile cells which push and rotate the fibres.
+
+Other conditions can be explored from these files by changing ```relative_fibre_volume``` (fibre density), ```anisotropic_fibres``` and ```angle_normdist_sd``` (alignment of the fibres), ```fibre_degradation```, and ```fibre_custom_degradation``` (degradation depending on pressure).
 
 ## Requirements for 3D vizualisation 
 If you wish to generate file using VTK readable directly in parawiew, you will need: 
@@ -127,7 +160,7 @@ The python script paraview_viewer.py generates .vtu files containing points (coo
 **Load data and a state file in paraview**
 
 In paraview: 
-1. In the top menu bar, go to File > Load State ... select the appropriate .pvsm file (it should be loade in your config folder). 
+1. In the top menu bar, go to File > Load State ... select the state file ```cells_and_fibres.pvsm``` (it is loaded in your config folder). 
 2. In the next window select "Choose file name in the scroll menu. Then select the .vtu files you wish to visualize in your output folder.
 3. Click on Apply at the top of the properties menu. You should see spheres and cylinders.
 
