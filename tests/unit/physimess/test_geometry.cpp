@@ -505,6 +505,28 @@ static void crosslinked_fibre_pushed_on_the_side_of_its_centre()
     }
 }
 
+static void crosslinked_fibre_pushed_on_the_side_opposite_to_its_centre()
+{
+    // fibre from (-10,0,0) to (10,0,0) crosslinked at x = -4, pushed towards +y at x = -9:
+    // clockwise rotation seen from +z, the centre (at 4 from the pivot) goes down
+    const double angle = 5 * 0.4 / (400.0 / 12); // 0.06 rad
+    const FibreRotation rotation = rotate_fibre_about_pivot(vec(-4, 0, 0), vec(0, 0, 0), vec(-9, 0, 0), vec(0, 0.4, 0), 10, 1.0);
+    CHECK(rotation.rotated);
+    CHECK(same_axis(rotation.orientation, vec(std::cos(angle), -std::sin(angle), 0), TOL));
+    CHECK_VEC_NEAR(rotation.centre, vec(-4 + 4 * std::cos(angle), -4 * std::sin(angle), 0), TOL);
+
+    for (int n = 0; n < 500; n++) {
+        const Vec centre = random_vector(50), direction = random_unit_vector();
+        const double half_length = uniform(5, 40);
+        // pivot at abscissa p in (-0.9, -0.1) half lengths, impact between the pivot and the negative end
+        const double p = uniform(-0.9, -0.1) * half_length;
+        const double q = uniform(-half_length, p - 0.05 * half_length);
+        const Vec pivot = add(centre, scale(p, direction)), impact = add(centre, scale(q, direction));
+        const Vec force = add(scale(uniform(0.05, 0.3), random_perpendicular(direction)), scale(uniform(-1, 1), direction));
+        check_rigid_rotation_about_pivot(pivot, centre, impact, force, half_length, uniform(0.1, 2));
+    }
+}
+
 static void crosslinked_fibre_without_torque()
 {
     const Vec pivot = vec(-4, 0, 0), centre = vec(0, 0, 0);
@@ -546,6 +568,7 @@ int main()
         TEST(rotation_does_not_depend_on_the_frame),
         TEST(fibre_hinged_at_one_end),
         TEST(crosslinked_fibre_pushed_on_the_side_of_its_centre),
+        TEST(crosslinked_fibre_pushed_on_the_side_opposite_to_its_centre),
         TEST(crosslinked_fibre_without_torque),
     };
     const int number_of_tests = sizeof(tests) / sizeof(tests[0]);

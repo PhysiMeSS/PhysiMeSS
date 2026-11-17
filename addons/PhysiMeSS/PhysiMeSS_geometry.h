@@ -111,8 +111,8 @@ struct FibreRotation
 
     The returned orientation is the direction of the rotated lever arm, i.e.
     it points from the pivot towards the impact point. The fibre centre is
-    moved so that it stays at the same distance from the pivot (it only moves
-    when the pivot is not the centre, i.e. for a crosslinked fibre).
+    rotated about the pivot with the rest of the fibre (it only moves when
+    the pivot is not the centre, i.e. for a crosslinked fibre).
 
     No rotation is returned when the force is applied at the pivot or when
     the resulting angle is negligible (force parallel to the lever arm).
@@ -178,8 +178,10 @@ inline FibreRotation rotate_fibre_about_pivot(
     result.orientation = new_direction;
     result.centre = centre;
     if (pivot_to_centre_distance > 1e-10) {
+        // the centre is on the fibre axis, on the side of the impact point or on the other side of the pivot
+        const double side = (dot(pivot_to_centre, old_direction) < 0) ? -1.0 : 1.0;
         for (unsigned int i = 0; i < 3; i++) {
-            result.centre[i] += (-old_direction[i] + new_direction[i]) * pivot_to_centre_distance;
+            result.centre[i] += side * (-old_direction[i] + new_direction[i]) * pivot_to_centre_distance;
         }
     }
     return result;
