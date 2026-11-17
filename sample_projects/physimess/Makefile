@@ -48,9 +48,9 @@ else
 	endif
 endif
 
-CFLAGS_LINK := CFLAGS_LINK := $(shell echo $(CFLAGS) | sed -e "s/-fopenmp//g")
-COMPILE_COMMAND := $(CC) $(CFLAGS)
-LINK_COMMAND := $(CC) $(CFLAGS_LINK)
+CFLAGS_LINK := $(shell echo $(CFLAGS) | sed -e "s/-fopenmp//g")
+COMPILE_COMMAND := $(CC) $(CFLAGS) $(EXTRA_FLAGS)
+LINK_COMMAND := $(CC) $(CFLAGS_LINK) $(EXTRA_FLAGS)
 
 BioFVM_OBJECTS := BioFVM_vector.o BioFVM_mesh.o BioFVM_microenvironment.o BioFVM_solvers.o BioFVM_matlab.o \
 BioFVM_utilities.o BioFVM_basic_agent.o BioFVM_MultiCellDS.o BioFVM_agent_container.o 
@@ -211,7 +211,6 @@ reset:
 	rm -f ./config/mymodel.xml *.csv
 	rm -f ./config/paraview_viewer.py
 	rm -f ./config/cells_and_fibres.pvsm
-	rm -f ./config/statevtu.pvsm
 	rm -fr ./config/Cell_Fibre_Mechanics ./config/Cell_Fibre_Mechanics_3D ./config/Fibre_Crosslinks ./config/Fibre_Degradation_3D ./config/Fibre_Initialisation ./config/Neighbours_in_voxels ./config/Fibre_Degradation
 	
 clean:
