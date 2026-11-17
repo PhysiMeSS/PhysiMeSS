@@ -125,6 +125,19 @@ always anticlockwise, whatever the side of the fibre and the direction of the ce
 - **Effect.** None on the mechanics (a fibre and its opposite are the same segment); the saved
   `orientation` no longer flips.
 
+### 2.8 No cap on the rotation per step
+
+- **What.** The rotation of a fibre during one mechanics step is not limited, like the
+  displacement of a cell in PhysiCell.
+- **Why.** A limit would be an arbitrary constant. A single cell acting at the end of a free
+  fibre with the velocity `v` rotates it by `6 v dt_mechanics / L` per step: 0.03 rad for a cell
+  migrating at 2 micron/min along a fibre of 40 micron with `fibre_sticky = 1`. The largest
+  value, reached only if the centre of a cell lies on the end of the fibre (full repulsion, 10
+  micron/min by default), is 0.15 rad for a fibre of 40 micron and 0.6 rad for 10 micron.
+- **Effect.** In the examples the largest rotation of a fibre in one step is 0.015 rad (3D
+  hinge), 0.013 rad (2D rotating), 0.009 rad (3D squish) and 0.006 rad (3D degradation with
+  motile cells). If a simulation gives large rotations per step, reduce `dt_mechanics`.
+
 ## 3. Pushing
 
 - **What.** A cell in contact with a fibre pushes it even when it does not rotate it (contact at
@@ -148,7 +161,6 @@ always anticlockwise, whatever the side of the fibre and the direction of the ce
 
 ## Known limitations
 
-- The rotation angle per step is not capped.
 - Fibres named `fibre_vertical` and `fibre_horizontal` have a fixed orientation whatever the
   configuration says (as in version 1.0.1).
 - 3D configurations with anisotropic fibres must define `fibre_angle_phi`; when it is missing,
