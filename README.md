@@ -142,48 +142,30 @@ creates fibres of the cell definition ```ID``` until they occupy the fraction ``
 
 Other conditions can be explored from these files by changing ```relative_fibre_volume``` (fibre density), ```anisotropic_fibres``` and ```angle_normdist_sd``` (alignment of the fibres), ```fibre_degradation```, and ```fibre_custom_degradation``` (degradation depending on pressure).
 
-## Requirements for 3D vizualisation 
-If you wish to generate file using VTK readable directly in parawiew, you will need: 
-- Python 3.6+
-- Paraview : https://www.paraview.org/download/ 
+## Visualization in ParaView
+Cells and fibres can be displayed in 3D with [ParaView](https://www.paraview.org/download/): cells as spheres, fibres as cylinders. This requires Python 3.6+ and ParaView (tested with ParaView 6.2).
 
-Tests were only performed using Paraview 5.11.0.
-Paraview documentation and tutorial are available [here](https://docs.paraview.org/en/v5.11.0/UsersGuide/index.html).
+**1. Save the full data.** Check that ```<full_data>``` ```<enable>``` is true in your .xml settings file, so that the simulation writes .mat and .xml files in the output folder.
 
-## Visualization in Paraview
-When running your simulation check that save full data is enabled in your .xml setting file. This will generate .mat and .xml files during your simulation that will be used by the ```paraview_viewer.py``` (located ```./sample_projects/physimess/config```) script to create .vtu files and a .pvd file that can be read in paraview. To run the script from the command line do:
+**2. Convert the output.** From the PhysiCell root directory,
 ```
     make vtu output="./output"
 ```
-Replace ``` ./output``` by your output folder where the .mat and .xml files are located. If no argument is provided, ```"./output"``` will be set as default. 
+converts the output folder given in ```output``` (```./output``` by default). The first time, it installs the required python packages (numpy, scipy and vtk) in a virtual environment (physimessenv). The script ```paraview_viewer.py``` (in your config folder) then writes, in the output folder, one .vtu file per saved time step and a file ```simulation.pvd``` which lists them. Each agent is a point, located at the centre of the cell or fibre, with all the data saved by PhysiCell (cell type, radius, orientation, custom data, ...) and a flag ```is_fibre```.
 
-This command will install the required pyhton packages (scipy, numpy and vtk) in a virtual environment (physimessenv), and activate the environment before running the python script.
+**3. Display cells and fibres.** In ParaView:
+1. File > Open, select ```simulation.pvd``` in your output folder, and click on Apply in the properties panel. You should see points.
+2. View > Python Shell, click on Run Script and select ```cells_and_fibres.py``` in your config folder. You should see spheres and cylinders, coloured by cell type.
+3. Use the animation controls of the toolbar to go through the time steps.
 
-Then open paraview. 
+Cells are drawn with their radius, and fibres with the length and radius of their cell definition (```fibre_length```, ```fibre_radius```) along their orientation. Fibres are the agents whose cell definition name contains ecm, matrix, fiber, fibre or rod, as in the simulation. The script creates the filters ```cells```, ```spheres```, ```fibres```, ```fibre_axes``` and ```cylinders``` in the pipeline browser; select one of them to change its colour or its properties.
 
-**Brief overview of paraview functioning** 
+**Images without the graphical interface.** With the ```pvpython``` program installed with ParaView:
+```
+    pvpython ./config/cells_and_fibres.py ./output/simulation.pvd --png image.png
+    pvpython ./config/cells_and_fibres.py ./output/simulation.pvd --frames ./output/frames
+```
+The first command saves an image of the last time step (or of the time step given with ```--step```), the second one image per time step.
 
-The python script paraview_viewer.py generates .vtu files containing points (coordinate in space) associated to a number of properties that are saved during PhysiCell simulation when in the simulation settings file, \<full_data>\<enable> is set to true. This points correspond to the center of cells and fibres. In paraview, we can apply filters on those points to visualize them as different geometrical shape of various sizes and so on. Paraview works with layer. On the input file we are going to apply multiple filters on points based on the properties associated to them. These filters to apply on input data can be saved in a state file (.pvsm) and thus reuse on other input data.
-
-**Load data and a state file in paraview**
-
-In paraview: 
-1. In the top menu bar, go to File > Load State ... select the state file ```cells_and_fibres.pvsm``` (it is loaded in your config folder). 
-2. In the next window select "Choose file name in the scroll menu. Then select the .vtu files you wish to visualize in your output folder.
-3. Click on Apply at the top of the properties menu. You should see spheres and cylinders.
-
-**Discriminate appropriately between spheres and cylinders**
-
-By default, agents of type 0 in your simulation are displayed as sphere and agent of type 1 are displayed as cylinders.The type is the number and name associated with the cell definition in your .xml setting file, if you are unsure of how your types are set, you can check the value in the setting files that is saved in your output folder when you run a simulation. If in your simulation the type differ from this default:
-1. In the pipeline browser, select type_0 (this is a Threshold filter that select all agents with cell type equal to 0).
-2. If your cells are of cell type 2 for instance, in the properties menu, modify Lower Threshold and Upper Threshold to 2.
-3. Click on Apply. You should see spheres appear.
-
-Proceed the same way if your fibres are not of type 1.
-
-**Modify the default size parameters of spheres and cylinders:**
-
-By default, the sphere radius is set as 8.413 according to PhysiCell parameters, the radius of fibres is set at 2 and the length is set at 40. If the parameters differ in your simulation:
-1. In the pipeline browser, select spheres or cylinders
-2. In the properties menu, in the section Glyph Source, you can modify radius or height (which corresponds to length) as you wish. 
-
+## Future work
+The next development of PhysiMeSS concerns the mechanics of the fibre network. In this version a crosslink between two fibres is a contact: a fibre with one crosslink rotates about it, a fibre with two or more crosslinks does not move, and no force is transmitted from one fibre to another. The plan is to make crosslinks persistent bonds with a force between the two fibres, so that cells can deform and remodel a network of fibres instead of only degrading it. The current rules and their limits are described in [addons/PhysiMeSS/MODEL_CHANGES.md](addons/PhysiMeSS/MODEL_CHANGES.md).

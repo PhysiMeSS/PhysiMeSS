@@ -11,6 +11,9 @@ The geometry of the cell-fibre interaction (nearest point on a fibre, rotation o
 
 The changes of the model since version 1.0.1 (what changed, why, and the effect on the results) are listed in [MODEL_CHANGES.md](MODEL_CHANGES.md).
 
+## Future work
+The next development of PhysiMeSS concerns the mechanics of the fibre network: crosslinks between fibres are contacts in this version, and are planned to become persistent bonds with a force between the two fibres. See [MODEL_CHANGES.md](MODEL_CHANGES.md) for the current rules and their limits.
+
 ## Dedicated sample project
 PhysiMeSS comes with a dedicated sample project, called **physimess-sample**. To build it, go to the root directory and use : 
 

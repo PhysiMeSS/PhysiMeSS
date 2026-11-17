@@ -46,6 +46,23 @@ def parse_physiboss_labels(xml_file):
         return {}
 
 
+# same keywords as isFibre in addons/PhysiMeSS/PhysiMeSS_fibre.cpp
+FIBRE_KEYWORDS = ("ecm", "matrix", "fiber", "fibre", "rod")
+
+def parse_fibre_types(xml_file):
+    """Cell types which are fibres: those whose cell definition name contains a fibre keyword"""
+    fibre_types = set()
+    try:
+        root = ET.parse(xml_file).getroot()
+        for cell_type in root.findall(".//cell_types/type"):
+            name = cell_type.text.strip() if cell_type.text else ""
+            if any(keyword in name for keyword in FIBRE_KEYWORDS):
+                fibre_types.add(int(cell_type.get("type", cell_type.get("ID"))))
+    except Exception as e:
+        print(f"Warning: could not read the cell types of {xml_file}: {str(e)}")
+    return fibre_types
+
+
 def mat_to_vtu(mat_file, xml_file, output_file):
     """Convert a PhysiCell .mat file to VTU format with proper labels"""
     try:
@@ -123,6 +140,15 @@ def mat_to_vtu(mat_file, xml_file, output_file):
         
         grid.GetPointData().AddArray(type_array)
         grid.GetPointData().AddArray(radius_array)
+
+        # 1 for fibres, 0 for cells: used by cells_and_fibres.py to draw cylinders or spheres
+        fibre_types = parse_fibre_types(xml_file)
+        fibre_array = vtkDoubleArray()
+        fibre_array.SetName("is_fibre")
+        fibre_array.SetNumberOfComponents(1)
+        for i in range(len(valid_cell_indices)):
+            fibre_array.InsertNextValue(1.0 if cell_types[i] in fibre_types else 0.0)
+        grid.GetPointData().AddArray(fibre_array)
         
         # Add other cell data
         for idx, label_info in labels.items():
@@ -287,6 +313,7 @@ def main():
         print(f"1. Open ParaView")
         print(f"2. File > Open > Navigate to: {os.path.abspath(pvd_file)}")
         print(f"3. Click 'Apply' in the Properties panel to load the data")
+        print(f"4. View > Python Shell > Run Script: cells_and_fibres.py, to draw cells as spheres and fibres as cylinders")
 
 if __name__ == '__main__':
     main()

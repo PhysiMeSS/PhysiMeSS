@@ -179,7 +179,7 @@ Consequences:
 - no force is transmitted through the network: a cell never moves a fibre it does not touch.
 
 Persistent crosslinks, with a force between the two fibres, would remove these limits. This is
-left for a future version.
+the next planned development of PhysiMeSS.
 
 **Saved crosslink count.** The custom data `crosslink_count` of a fibre is now updated at every
 mechanics step. It was only updated when a periodic full save was written, so the final snapshot
