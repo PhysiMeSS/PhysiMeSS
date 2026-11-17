@@ -114,6 +114,8 @@ The directory Cell_Fibre_Mechanics_3D contains the 3D counterparts of the cell-f
 
 * The xml files ```mymodel_squish.xml``` and ```mymodel_squish_2.xml``` with csv files ```squish.csv``` and ```squish_2.csv``` simulate two cells moving in opposite directions, each towards its own attractant, with a single fibre between them which they both push and rotate.
 
+* The xml file ```mymodel_hinge.xml``` with csv file ```hinge.csv``` simulates a single cell moving towards an attractant placed out of the plane of two crosslinked fibres. The fibre in its way is pushed and rotated out of the plane, about its crosslink with the other fibre.
+
 * The xml file ```barrier_fibre.xml``` with csv file ```barrier.csv``` simulates a single cell moving towards an attractant through a barrier of fibres placed in a 3D domain. Fibre pushing and rotation are off by default.
 
 #### Fibre_Degradation_3D
