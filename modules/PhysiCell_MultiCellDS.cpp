@@ -239,7 +239,6 @@ void add_PhysiCell_cells_to_open_xml_pugi_v2( pugi::xml_document& xml_dom, std::
 			cell_type_names.push_back( name ); 
 			cell_type_IDs.push_back( type ); 
 			cell_type_indices.push_back( index); 
-			std::cout << j << std::endl;
 		}
 
 		cell_types_legend_done = true; 
@@ -1252,7 +1251,7 @@ void add_PhysiCell_cells_to_open_xml_pugi_v2( pugi::xml_document& xml_dom, std::
 	}	
 
 	write_spring_attached_cells_graph( filename ); 
-	//std::cout << "This part is running" << std::endl;
+
 	return; 
 }
 

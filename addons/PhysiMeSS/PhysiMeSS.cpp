@@ -9,7 +9,6 @@ static double last_update_time = -mechanics_dt;
 void remove_physimess_out_of_bounds_fibres()
 {
     for (auto* cell : *all_cells) {
-        
         if (isFibre(cell) && static_cast<PhysiMeSS_Fibre*>(cell)->fail_count >= 10)
         {
             // std::cout << "I failed to place " << cell->type_name << " " 
@@ -152,7 +151,7 @@ void physimess_mechanics( double dt )
                 static_cast<PhysiMeSS_Agent*>(pC)->register_fibre_voxels();
             }
         }
-        
+
         #pragma omp parallel for
         for( int i=0; i < (*all_cells).size(); i++ )
         {
@@ -166,7 +165,7 @@ void physimess_mechanics( double dt )
                 static_cast<PhysiMeSS_Agent*>(pC)->find_agent_neighbors();
             }
         }
-        
+
         // #pragma omp parallel for
         // This is not parallel because we are modifying the agend grid
         for( int i=0; i < (*all_cells).size(); i++ )
@@ -187,7 +186,6 @@ void physimess_mechanics( double dt )
                 static_cast<PhysiMeSS_Fibre*>(pC)->add_crosslinks();
             }
         }
-        
     }
 }
 

@@ -16,7 +16,7 @@ class PhysiMeSS_Fibre : public PhysiMeSS_Agent
     private:
     public:
     std::vector<PhysiCell::Cell*> fibres_crosslinkers;
-    std::vector<double> fibres_crosslink_point = std::vector<double>(3, 0.0);
+    std::vector<double> fibres_crosslink_point;
     
     double mLength;
     double mRadius;
@@ -30,13 +30,12 @@ class PhysiMeSS_Fibre : public PhysiMeSS_Agent
     void check_out_of_bounds(std::vector<double>& position);
     virtual void add_potentials_from_fibre(PhysiMeSS_Fibre* other_fibre);
     virtual void add_potentials_from_cell(PhysiMeSS_Cell* cell);
-    virtual void add_potentials_from_cell_2D(PhysiMeSS_Cell* cell);
-    virtual void add_potentials_from_cell_3D(PhysiMeSS_Cell* cell);
 
     void register_fibre_voxels();
     void deregister_fibre_voxels();
     
-    std::vector<double> nearest_point_on_fibre(std::vector<double> point, std::vector<double> &displacement);
+    // vector from the point of the fibre axis nearest to "point", to "point" (stored in "displacement" and returned)
+    std::vector<double> nearest_point_on_fibre(const std::vector<double>& point, std::vector<double> &displacement);
 
     void check_fibre_crosslinks(PhysiMeSS_Fibre *fibre_neighbor);
     void add_crosslinks();
