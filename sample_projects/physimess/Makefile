@@ -260,11 +260,11 @@ REQUIRED_PACKAGES = numpy scipy vtk
 PYTHON = python3
 PIP = pip3
 DEFAULT_OUTPUT = "./output"
-# Allow OUTPUT to be overridden by command line argument
+# Allow VTU_OUTPUT to be overridden by command line argument
 ifdef output
-    OUTPUT = $(output)
+    VTU_OUTPUT = $(output)
 else
-    OUTPUT = $(DEFAULT_OUTPUT)
+    VTU_OUTPUT = $(DEFAULT_OUTPUT)
 endif
 
 # OS detection and commands
@@ -274,14 +274,14 @@ ifeq ($(OS),Windows_NT)
     VENV_PYTHON = $(VENV_NAME)\\Scripts\\python.exe
     VENV_PIP = $(VENV_NAME)\\Scripts\\pip.exe
     PYTHON_SCRIPT = .\\config\\paraview_viewer.py
-    RUN_COMMAND = $(VENV_ACTIVATE) && echo Running your application in the virtual environment with OUTPUT=$(OUTPUT)... && $(VENV_PYTHON) $(PYTHON_SCRIPT) $(OUTPUT)
+    RUN_COMMAND = $(VENV_ACTIVATE) && echo Running your application in the virtual environment with VTU_OUTPUT=$(VTU_OUTPUT)... && $(VENV_PYTHON) $(PYTHON_SCRIPT) $(VTU_OUTPUT)
 else
     SYSTEM = $(shell uname -s)
     VENV_ACTIVATE = . $(VENV_NAME)/bin/activate
     VENV_PYTHON = $(VENV_NAME)/bin/python
     VENV_PIP = $(VENV_NAME)/bin/pip
     PYTHON_SCRIPT = ./config/paraview_viewer.py
-    RUN_COMMAND = $(VENV_ACTIVATE) && echo "Running your application in the virtual environment with OUTPUT=$(OUTPUT)..." && $(VENV_PYTHON) $(PYTHON_SCRIPT) $(OUTPUT)
+    RUN_COMMAND = $(VENV_ACTIVATE) && echo "Running your application in the virtual environment with VTU_OUTPUT=$(VTU_OUTPUT)..." && $(VENV_PYTHON) $(PYTHON_SCRIPT) $(VTU_OUTPUT)
 endif
 
 vtu:
