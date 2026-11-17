@@ -58,6 +58,14 @@ inline std::vector<double> displacement_from_fibre(
     const double fibre_length = 2 * half_length;
 
     std::vector<double> displacement(3, 0.0);
+    if (half_length <= 0.) {
+        // fibre reduced to a point
+        for (unsigned int i = 0; i < 3; i++) {
+            displacement[i] = point[i] - centre[i];
+        }
+        return displacement;
+    }
+
     std::vector<double> endpoint(3, 0.0);          // "start" end of the fibre
     std::vector<double> endpoint_to_point(3, 0.0);
     // endpoint_to_point . (end - start): position along the fibre, scaled by the fibre length

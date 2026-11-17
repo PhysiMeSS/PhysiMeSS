@@ -223,6 +223,13 @@ static void nearest_point_does_not_depend_on_the_frame()
     }
 }
 
+static void nearest_point_of_a_fibre_of_zero_length()
+{
+    // a fibre reduced to a point: the displacement is point - centre
+    const Vec displacement = displacement_from_fibre(vec(4, 5, 6), vec(1, 1, 1), vec(1, 0, 0), 0.0);
+    CHECK_VEC_NEAR(displacement, vec(3, 4, 5), TOL);
+}
+
 // ------------------------------------------------- rotation of a free fibre
 // (the pivot is the centre of the fibre)
 
@@ -556,6 +563,7 @@ int main()
         TEST(nearest_point_does_not_depend_on_the_sign_of_the_orientation),
         TEST(nearest_point_is_on_the_fibre_and_is_the_nearest),
         TEST(nearest_point_does_not_depend_on_the_frame),
+        TEST(nearest_point_of_a_fibre_of_zero_length),
         TEST(free_fibre_pushed_at_its_positive_end_in_plane),
         TEST(free_fibre_pushed_at_its_negative_end_in_plane),
         TEST(free_fibre_pushed_out_of_plane),
