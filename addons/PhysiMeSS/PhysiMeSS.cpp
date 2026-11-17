@@ -200,6 +200,11 @@ void physimess_mechanics( double dt )
             Cell* pC = (*all_cells)[i];
             if (isFibre(pC)) {
                 static_cast<PhysiMeSS_Fibre*>(pC)->add_crosslinks();
+                // number of crosslinks of the fibre, saved with the custom data when the variable exists
+                int crosslink_count_index = pC->custom_data.find_variable_index("crosslink_count");
+                if (crosslink_count_index >= 0) {
+                    pC->custom_data[crosslink_count_index] = static_cast<PhysiMeSS_Fibre*>(pC)->fibres_crosslinkers.size();
+                }
             }
         }
     }

@@ -254,12 +254,6 @@ int main( int argc, char* argv[] )
 				
 				if( PhysiCell_settings.enable_full_saves == true )
 				{	
-					for (auto* cell : *all_cells) {
-						if (isFibre(cell))
-						{
-							cell->custom_data["crosslink_count"] = static_cast<PhysiMeSS_Fibre*>(cell)->X_crosslink_count;
-						}
-					}
 					sprintf( filename , "%s/output%08u" , PhysiCell_settings.folder.c_str(),  PhysiCell_globals.full_output_index ); 
 					save_PhysiCell_to_MultiCellDS_v2( filename , microenvironment , PhysiCell_globals.current_time ); 
 				}

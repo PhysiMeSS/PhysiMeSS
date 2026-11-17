@@ -144,7 +144,41 @@ always anticlockwise, whatever the side of the fibre and the direction of the ce
   the pivot, or cell moving along the fibre).
 - **Why.** In the intermediate 3D code the function returned before the push in these cases.
 
-## 4. Mechanics time step
+## 4. Crosslinks between fibres
+
+The rules are those of version 1.0.1; they are stated here because they limit what the model
+can represent.
+
+- **A crosslink is a contact, not a bond.** At every mechanics step, two fibres which touch (the
+  distance between their axes is less than the sum of their radii) are crosslinked. Nothing
+  holds them together: the crosslink disappears as soon as they no longer touch.
+- **No crosslink:** the fibre is pushed, and rotated about its centre.
+- **One crosslink:** the fibre is rotated about the crosslink point (2.6). It is pushed only if
+  the other fibre has no other crosslink.
+- **Two or more crosslinks:** the fibre does not move.
+- **The other fibre is an anchor:** rotating a fibre about a crosslink exerts nothing on the
+  other fibre.
+- A fibre only moves if motility is enabled in its cell definition.
+
+Consequences:
+
+- pushing a fibre with one crosslink can slide it off the other fibre, which breaks the hinge;
+- dense meshes are partly frozen: the fibres with two or more crosslinks are 48% in the 2D
+  matrix degradation example, all of them in the 2D fibre maze, more than 99% in the 2D
+  initialisation example (2000 fibres), 7% in the 3D degradation example and none in its low density variant. Cells
+  cross them by degrading them;
+- no force is transmitted through the network: a cell never moves a fibre it does not touch.
+
+Persistent crosslinks, with a force between the two fibres, would remove these limits. This is
+left for a future version.
+
+**Saved crosslink count.** The custom data `crosslink_count` of a fibre is now updated at every
+mechanics step. It was only updated when a periodic full save was written, so the final snapshot
+(`final_cells.mat`) held the value of the last periodic save (zero for all fibres when the only
+periodic save was the initial one). The snapshot saved at time zero still holds zero, as the
+crosslinks are first computed at the first mechanics step.
+
+## 5. Mechanics time step
 
 - **What.** The fibre mechanics (neighbours, crosslinks, rotation) runs every `dt_mechanics`,
   whatever its value.
@@ -152,7 +186,7 @@ always anticlockwise, whatever the side of the fibre and the direction of the ce
   and fibres did not interact at all.
 - **Note.** PhysiCell itself requires `dt_mechanics` to be a multiple of `dt_diffusion`.
 
-## 5. Robustness
+## 6. Robustness
 
 - A fibre of zero length (the length is drawn from a normal distribution) no longer gives NaN
   for the nearest point: it is treated as a point.
@@ -165,5 +199,5 @@ always anticlockwise, whatever the side of the fibre and the direction of the ce
   configuration says (as in version 1.0.1).
 - 3D configurations with anisotropic fibres must define `fibre_angle_phi`; when it is missing,
   the first custom variable is silently used instead.
-- Fibres with one crosslink are rotated but not translated, except pairs of fibres crosslinked
-  to each other alone (as in version 1.0.1).
+- Crosslinks are contacts recomputed at every step, and fibres with two or more crosslinks do not
+  move (section 4).
