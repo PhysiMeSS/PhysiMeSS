@@ -171,7 +171,8 @@ void PhysiMeSS_Fibre::check_out_of_bounds(std::vector<double>& position)
     - contact: the repulsion of PhysiCell, which pushes the fibre away from
       the cell (PhysiMeSS_Geometry::contact_velocity);
     - traction: a migrating cell drags the fibres it adheres to, with its
-      motility vector multiplied by fibre_sticky.
+      motility vector multiplied by its custom data fibre_sticky (the
+      adhesion of the cell to fibres).
 
     Translation (cell custom data fibre_pushing): the contact is added to the
     velocity of the fibre. Only free fibres, or pairs of fibres crosslinked to
@@ -219,7 +220,8 @@ void PhysiMeSS_Fibre::add_potentials_from_cell(PhysiMeSS_Cell* cell)
         // contact + traction of the migrating cell
         std::vector<double> cell_action(3, 0.0);
         const std::vector<double>& pivot_position = (X_crosslink_count == 1) ? this->fibres_crosslink_point : this->position;
-        const double stickiness = this->custom_data["fibre_sticky"];
+        // adhesion of the cell to fibres
+        const double stickiness = cell->custom_data["fibre_sticky"];
         for (int i = 0; i < dimensions; i++) {
             point_of_impact[i] = cell->position[i] - this->displacement[i];
             pivot[i] = pivot_position[i];

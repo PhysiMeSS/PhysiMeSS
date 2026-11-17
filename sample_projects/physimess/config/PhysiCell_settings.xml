@@ -225,7 +225,7 @@
           <fibre_stuck units="1/min" description="time before stuck cell can degrade fibre">10.0</fibre_stuck>
           <fibre_stuck_threshold units="none" description="movement threshold to declare a cell stuck">0.05</fibre_stuck_threshold>
           <fibre_pushing units="none" description="flag for fibre pushing">0.0</fibre_pushing>
-          <fibre_sticky units="none" description="measure of how easy it is to move a fibre">10.0</fibre_sticky>
+          <fibre_sticky units="none" description="adhesion of the cell to fibres: traction exerted on the fibres it touches (0: none)">1.0</fibre_sticky>
           <fibre_rotation units="none" description="flag for fibre rotation">0.0</fibre_rotation>
           <vel_adhesion units="" description="cell velocity parallel to fibre">0.6</vel_adhesion>
           <vel_contact units="" description="cell velocity orthogonal to fibre">0.1</vel_contact>

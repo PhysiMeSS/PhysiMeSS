@@ -84,27 +84,31 @@ always anticlockwise, whatever the side of the fibre and the direction of the ce
     directed from the cell to the fibre (`D`: distance from the fibre axis to the cell centre,
     `R`: cell radius + fibre radius). It is the velocity already used to push fibres;
   - the *traction*: `fibre_sticky * motility_vector` of the cell: a migrating cell drags the
-    fibres it adheres to.
+    fibres it adheres to (2.5).
 - **Why.** In version 1.0.1 only the migration of the cell rotated a fibre: a crowd of cells
   growing against a fibre could translate it but never turn it, and the depth of the contact
   played no role. Cells both displace fibres sterically and pull on them through adhesions; the
   two effects now have one parameter each (repulsion strength, `fibre_sticky`).
 - **Effect.** Non-motile cells pressing on a fibre rotate it. With `fibre_sticky = 0` only the
-  contact acts. In the cell-fibre mechanics examples the traction dominates: with
-  `fibre_sticky = 10` the contact changes the positions of the fibres by less than 0.001 micron;
-  with `fibre_sticky = 0` the cell of the 3D hinge example rotates the fibre by about 10 degrees
-  instead of 65.
+  contact acts. In the cell-fibre mechanics examples, where a single migrating cell meets a
+  fibre, the traction dominates: in the 3D hinge example the fibre is rotated by about 10 degrees
+  by the contact alone (`fibre_sticky = 0`) and by about 60 degrees with `fibre_sticky = 1`.
 - **Flags.** `fibre_rotation` (cell custom data) switches the rotation, by contact and traction;
   `fibre_pushing` switches the translation by contact, as before.
 
 ### 2.5 Meaning and value of `fibre_sticky`
 
-- **What.** `fibre_sticky` multiplies the traction only (2.4). With 1, a migrating cell drags the
-  fibre with the force which would translate it at the velocity of the cell.
-- **Effect.** In the example configurations `fibre_sticky` was changed from 1 to 10, which gives a
-  free fibre the rotation per step it had before 2.2 with `dt_mechanics = 0.1`. The outcome of the
-  examples depends weakly on it above 1 (3D hinge: 60 degrees with 1, 65 with 10), because the
-  fibre stops rotating when the cell has passed.
+- **What.** `fibre_sticky` is a custom data of the *cell*: it represents the adhesion of the cell
+  to fibres (the level of its adhesion receptors), and multiplies the traction only (2.4). With 0
+  the cell does not adhere: it rotates fibres by contact only. With 1 it drags a fibre with the
+  force which would translate the fibre at the velocity of the cell. Cell types can have
+  different values.
+- **Why.** In version 1.0.1 it was already read from the cell, as a factor of the rotation angle
+  per step. The intermediate 3D code read it from the fibre, so that all cell types rotated a
+  given fibre equally.
+- **Effect.** The default stays 1, as in version 1.0.1, but its effect is not the same (2.2, 2.3).
+  The outcome of the examples depends weakly on values above 1 (3D hinge: about 60 degrees with
+  1, 65 with 10), because the fibre stops rotating when the cell has passed.
 
 ### 2.6 Fibres with one crosslink
 
