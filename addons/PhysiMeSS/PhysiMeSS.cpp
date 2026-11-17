@@ -1,3 +1,4 @@
+#include "PhysiMeSS_geometry.h"
 #include "PhysiMeSS.h"
 
 #include <algorithm>
@@ -77,6 +78,11 @@ void physimess_update_cell_velocity( Cell* pCell, Phenotype& phenotype, double d
     }
 
     // std::cout << " AGENT " << pCell->type_name << " " << pCell->ID << " has " ;
+    if (!isFibre(pCell)) {
+        static_cast<PhysiMeSS_Cell*>(pCell)->fibre_contact_damping = 0.0;
+        static_cast<PhysiMeSS_Cell*>(pCell)->fibre_contact_orientation.assign(3, 0.0);
+    }
+
     //add potentials between pCell and its neighbors
     for (auto* neighbor : static_cast<PhysiMeSS_Agent*>(pCell)->physimess_neighbors)
     {
@@ -121,12 +127,16 @@ void physimess_update_cell_velocity( Cell* pCell, Phenotype& phenotype, double d
             << PhysiCell_globals.current_time << std::endl;*/
             ppCell->unstuck_counter++;
             ppCell->force_update_motility_vector(dt);
-            ppCell->velocity += phenotype.motility.motility_vector;
         }
         else {
             pCell->update_motility_vector(dt);
-            pCell->velocity += phenotype.motility.motility_vector;
         }
+
+        // contact with fibres: the motility across the most strongly contacting fibre is damped.
+        // This acts on the motility only, not on the previous velocity, so it cannot feed the
+        // velocity back into itself.
+        pCell->velocity += PhysiMeSS_Geometry::damp_motility_across_fibre(
+            phenotype.motility.motility_vector, ppCell->fibre_contact_orientation, ppCell->fibre_contact_damping);
 
         if(ppCell->unstuck_counter == unstuck_threshold+1){
             ppCell->unstuck_counter = 0;

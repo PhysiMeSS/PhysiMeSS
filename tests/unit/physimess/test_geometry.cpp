@@ -797,6 +797,153 @@ static void contact_torque_properties_in_3D()
     }
 }
 
+// ------------------------------------- effect of a fibre on the velocity of a cell
+// fibre_adhesion_velocity(previous_velocity, orientation, vel_adhesion, velocity_max)
+// fibre_contact_damping(previous_velocity, orientation, vel_contact)
+// damp_motility_across_fibre(motility, orientation, damping)
+
+static void adhesion_closed_forms()
+{
+    const Vec fibre = vec(0, 1, 0);
+    // cell moving along the fibre at half the maximum velocity: 0.6 * 1 * (1 - 0.5) = 0.3, in its direction of motion
+    CHECK_VEC_NEAR(fibre_adhesion_velocity(vec(0, 0.5, 0), fibre, 0.6, 1.0), vec(0, 0.3, 0), TOL);
+    CHECK_VEC_NEAR(fibre_adhesion_velocity(vec(0, -0.5, 0), fibre, 0.6, 1.0), vec(0, -0.3, 0), TOL);
+    // cell moving across the fibre: no adhesion
+    CHECK_NEAR(norm(fibre_adhesion_velocity(vec(0.5, 0, 0), fibre, 0.6, 1.0)), 0.0, TOL);
+    CHECK_NEAR(norm(fibre_adhesion_velocity(vec(0, 0, 0.5), fibre, 0.6, 1.0)), 0.0, TOL);
+    // at 60 degrees from the fibre, speed 0.5: 0.6 * cos(60) * 0.5 = 0.15 along the fibre, on the side of the motion
+    CHECK_VEC_NEAR(fibre_adhesion_velocity(vec(0.5 * std::sin(PI / 3), 0.25, 0), fibre, 0.6, 1.0), vec(0, 0.15, 0), TOL);
+    CHECK_VEC_NEAR(fibre_adhesion_velocity(vec(0.5 * std::sin(PI / 3), -0.25, 0), fibre, 0.6, 1.0), vec(0, -0.15, 0), TOL);
+    // cell at rest: nothing
+    CHECK_NEAR(norm(fibre_adhesion_velocity(vec(0, 0, 0), fibre, 0.6, 1.0)), 0.0, TOL);
+}
+
+static void adhesion_never_opposes_the_motion()
+{
+    const Vec fibre = vec(0, 1, 0);
+    // at the maximum velocity or above: no adhesion (it used to become negative and to grow with the speed)
+    CHECK_NEAR(norm(fibre_adhesion_velocity(vec(0, 1.0, 0), fibre, 0.6, 1.0)), 0.0, TOL);
+    CHECK_NEAR(norm(fibre_adhesion_velocity(vec(0, 2.0, 0), fibre, 0.6, 1.0)), 0.0, TOL);
+    CHECK_NEAR(norm(fibre_adhesion_velocity(vec(0, -1000.0, 0), fibre, 2.0, 1.0)), 0.0, TOL);
+
+    for (int n = 0; n < 1000; n++) {
+        const Vec orientation = random_unit_vector();
+        const Vec velocity = scale(uniform(0, 3), random_unit_vector());
+        const double vel_adhesion = uniform(0, 3), velocity_max = uniform(0.2, 2);
+        const Vec adhesion = fibre_adhesion_velocity(velocity, orientation, vel_adhesion, velocity_max);
+        // along the fibre, never against the motion of the cell, never more than vel_adhesion
+        CHECK_NEAR(norm(cross(adhesion, orientation)), 0.0, 1e-10);
+        CHECK(dot(adhesion, velocity) >= -1e-12);
+        CHECK(norm(adhesion) <= vel_adhesion + 1e-12);
+    }
+}
+
+static void adhesion_does_not_depend_on_the_sign_of_the_orientation()
+{
+    // a fibre and its opposite orientation are the same fibre
+    for (int n = 0; n < 500; n++) {
+        const Vec orientation = random_unit_vector();
+        const Vec velocity = scale(uniform(0, 1.5), random_unit_vector());
+        CHECK_VEC_NEAR(fibre_adhesion_velocity(velocity, scale(-1, orientation), 0.6, 1.0),
+                       fibre_adhesion_velocity(velocity, orientation, 0.6, 1.0), 1e-12);
+        CHECK_NEAR(fibre_contact_damping(velocity, scale(-1, orientation), 0.1),
+                   fibre_contact_damping(velocity, orientation, 0.1), 1e-12);
+    }
+}
+
+static void adhesion_is_symmetric_under_a_reversal_of_the_motion()
+{
+    // a cell going up a fibre and a cell going down the same fibre are accelerated in the same way
+    for (int n = 0; n < 500; n++) {
+        const Vec orientation = random_unit_vector();
+        const Vec velocity = scale(uniform(0, 1.5), random_unit_vector());
+        CHECK_VEC_NEAR(fibre_adhesion_velocity(scale(-1, velocity), orientation, 0.6, 1.0),
+                       scale(-1, fibre_adhesion_velocity(velocity, orientation, 0.6, 1.0)), 1e-12);
+    }
+}
+
+static void adhesion_does_not_depend_on_the_frame()
+{
+    for (int n = 0; n < 500; n++) {
+        const Vec orientation = random_unit_vector();
+        const Vec velocity = scale(uniform(0, 1.5), random_unit_vector());
+        const Vec k = random_unit_vector();
+        const double angle = uniform(-PI, PI);
+        CHECK_VEC_NEAR(fibre_adhesion_velocity(rotate(velocity, k, angle), rotate(orientation, k, angle), 0.6, 1.0),
+                       rotate(fibre_adhesion_velocity(velocity, orientation, 0.6, 1.0), k, angle), 1e-10);
+    }
+}
+
+static void contact_damping_closed_forms()
+{
+    const Vec fibre = vec(0, 1, 0);
+    // cell moving across the fibre: full damping coefficient; along the fibre: none
+    CHECK_NEAR(fibre_contact_damping(vec(0.7, 0, 0), fibre, 0.1), 0.1, TOL);
+    CHECK_NEAR(fibre_contact_damping(vec(0, 0, -3), fibre, 0.1), 0.1, TOL);
+    CHECK_NEAR(fibre_contact_damping(vec(0, 0.7, 0), fibre, 0.1), 0.0, TOL);
+    // at 60 degrees from the fibre: 0.1 * sin(60)^2 = 0.075
+    CHECK_NEAR(fibre_contact_damping(vec(std::sin(PI / 3), 0.5, 0), fibre, 0.1), 0.075, TOL);
+    // between 0 and vel_contact, whatever the speed
+    for (int n = 0; n < 500; n++) {
+        const double c = fibre_contact_damping(scale(uniform(0, 1000), random_unit_vector()), random_unit_vector(), 0.3);
+        CHECK(c >= 0 && c <= 0.3 + 1e-12);
+    }
+}
+
+static void damping_of_the_motility_across_a_fibre()
+{
+    const Vec fibre = vec(0, 1, 0);
+    // the part of the motility along the fibre is kept, the part across it is multiplied by (1 - damping)
+    CHECK_VEC_NEAR(damp_motility_across_fibre(vec(2, 3, 4), fibre, 0.25), vec(1.5, 3, 3), TOL);
+    CHECK_VEC_NEAR(damp_motility_across_fibre(vec(2, 3, 4), fibre, 0.0), vec(2, 3, 4), TOL);
+    CHECK_VEC_NEAR(damp_motility_across_fibre(vec(2, 3, 4), fibre, 1.0), vec(0, 3, 0), TOL);
+    // the damping is limited to [0, 1]: the motility across the fibre is never amplified nor reversed
+    CHECK_VEC_NEAR(damp_motility_across_fibre(vec(2, 3, 4), fibre, 5.0), vec(0, 3, 0), TOL);
+    CHECK_VEC_NEAR(damp_motility_across_fibre(vec(2, 3, 4), fibre, -1.0), vec(2, 3, 4), TOL);
+
+    for (int n = 0; n < 500; n++) {
+        const Vec orientation = random_unit_vector(), motility = random_vector(3);
+        const double damping = uniform(-0.5, 1.5);
+        const Vec damped = damp_motility_across_fibre(motility, orientation, damping);
+        CHECK_NEAR(dot(damped, orientation), dot(motility, orientation), 1e-10);   // along the fibre: unchanged
+        CHECK(norm(damped) <= norm(motility) + 1e-12);                             // never faster
+        CHECK(dot(damped, motility) >= -1e-12);                                    // never reversed
+        CHECK_VEC_NEAR(damp_motility_across_fibre(motility, scale(-1, orientation), damping), damped, 1e-10);
+    }
+}
+
+static void velocity_of_a_cell_between_parallel_fibres_stays_bounded()
+{
+    // A cell moving along N parallel fibres, as in PhysiMeSS_Cell: at each mechanics step
+    //     velocity = motility + sum over the fibres of the adhesion computed from the previous velocity
+    // With the published formula the speed diverged as soon as N * vel_adhesion > cell_velocity_max.
+    const Vec fibre = vec(0, 1, 0);
+    const double cases[][4] = { // number of fibres, vel_adhesion, velocity_max, migration speed
+        {2, 0.6, 1.0, 2.0}, {2, 2.0, 1.0, 2.0}, {2, 0.6, 1.0, 0.5}, {2, 2.0, 1.0, 0.5}, {10, 0.6, 1.0, 0.5}, {10, 2.0, 0.5, 3.0},
+    };
+    for (unsigned int i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        const int fibres = (int) cases[i][0];
+        const double vel_adhesion = cases[i][1], velocity_max = cases[i][2], speed = cases[i][3];
+        for (int direction = -1; direction <= 1; direction += 2) {
+            const Vec motility = vec(0, direction * speed, 0);
+            Vec velocity = vec(0, 0, 0);
+            double largest = 0;
+            for (int step = 0; step < 2000; step++) {
+                Vec next = motility;
+                for (int f = 0; f < fibres; f++) {
+                    next = add(next, fibre_adhesion_velocity(velocity, fibre, vel_adhesion, velocity_max));
+                }
+                velocity = next;
+                largest = std::max(largest, norm(velocity));
+                // the cell never goes backwards
+                CHECK(direction * velocity[1] > 0);
+            }
+            // never faster than the motility plus the full adhesion of all the fibres
+            CHECK(largest <= speed + fibres * vel_adhesion + 1e-9);
+        }
+    }
+}
+
 // ---------------------------------------------------------------- main
 
 struct Test
@@ -843,6 +990,14 @@ int main()
         TEST(cells_pressing_on_both_sides_of_a_fibre),
         TEST(contact_and_traction_add_up),
         TEST(contact_torque_properties_in_3D),
+        TEST(adhesion_closed_forms),
+        TEST(adhesion_never_opposes_the_motion),
+        TEST(adhesion_does_not_depend_on_the_sign_of_the_orientation),
+        TEST(adhesion_is_symmetric_under_a_reversal_of_the_motion),
+        TEST(adhesion_does_not_depend_on_the_frame),
+        TEST(contact_damping_closed_forms),
+        TEST(damping_of_the_motility_across_a_fibre),
+        TEST(velocity_of_a_cell_between_parallel_fibres_stays_bounded),
     };
     const int number_of_tests = sizeof(tests) / sizeof(tests[0]);
 

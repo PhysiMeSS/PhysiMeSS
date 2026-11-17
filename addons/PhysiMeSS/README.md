@@ -75,6 +75,8 @@ vel_contact = 0.1
 cell_velocity_max = 1.0
 ```
 
+A fibre within reach of a cell accelerates it along the fibre, in the direction in which the cell moves, by up to ```vel_adhesion``` (less as the speed of the cell approaches ```cell_velocity_max```, and not at all above it), and reduces by up to ```vel_contact``` (between 0 and 1) the part of its motility which is across the fibre.
+
 * The xml file ```mymodel_pushing.xml``` with csv file  ```snowplough.csv``` simulates a single cell pushing a single free/non-crosslinked fibre out of the way to access an attractant. By turning fibre pushing on (or off) you can control whether the cell can push fibres. Note, since cells can only push non-crosslinked fibres by increasing the ```fibre_length``` in this example and thereby creating crosslinks you can prevent cells from pushing fibres.
 
 Default parameters are:

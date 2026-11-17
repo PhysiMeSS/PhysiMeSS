@@ -1,10 +1,13 @@
 #include "PhysiMeSS_cell.h"
 #include "PhysiMeSS_fibre.h"
+#include "PhysiMeSS_geometry.h"
 
 PhysiMeSS_Cell::PhysiMeSS_Cell()
 {
     stuck_counter = 0;
     unstuck_counter = 0;
+    fibre_contact_damping = 0.0;
+    fibre_contact_orientation.assign(3, 0.0);
 }
 
 
@@ -64,34 +67,28 @@ void PhysiMeSS_Cell::add_potentials_from_fibre(PhysiMeSS_Fibre* pFibre) {
         axpy(&velocity, temp_r, displacement);
     }
 
-    //Then additional repulsion/adhesion as per Cicely's code
-    double fibre_adhesion = 0;
-    double fibre_repulsion = 0;
+    // Then the adhesion to the fibre and the damping by its contact, which depend on the direction
+    // of the cell relative to the fibre (see PhysiMeSS_geometry.h)
     if (distance < max_interactive_distance) {
         const std::vector<double> previous_velocity = get_previous_velocity();
-        double cell_velocity_dot_fibre_direction = 0.;
+
+        // adhesion: the cell is accelerated along the fibre, in the direction of its motion
+        const std::vector<double> adhesion = PhysiMeSS_Geometry::fibre_adhesion_velocity(
+            previous_velocity, pFibre->state.orientation,
+            this->custom_data["vel_adhesion"], this->custom_data["cell_velocity_max"]);
         for (unsigned int j = 0; j < 3; j++) {
-            cell_velocity_dot_fibre_direction += pFibre->state.orientation[j] * previous_velocity[j];
+            velocity[j] += adhesion[j];
         }
-        double cell_velocity = 0;
-        for (unsigned int j = 0; j < velocity.size(); j++) {
-            cell_velocity += previous_velocity[j] * previous_velocity[j];
+
+        // contact: the cell is slowed down across the fibre. The previous velocity is not subtracted
+        // here (once per fibre, it made the velocity of a cell between fibres diverge): the strongest
+        // contact is kept and damps the motility vector, once, in physimess_update_cell_velocity
+        const double contact_damping = PhysiMeSS_Geometry::fibre_contact_damping(
+            previous_velocity, pFibre->state.orientation, this->custom_data["vel_contact"]);
+        if (contact_damping > fibre_contact_damping) {
+            fibre_contact_damping = contact_damping;
+            fibre_contact_orientation = pFibre->state.orientation;
         }
-        cell_velocity = std::max(sqrt(cell_velocity), 1e-8);
-
-        double p_exponent = 1.0;
-        double q_exponent = 1.0;
-        double xi = fabs(cell_velocity_dot_fibre_direction)/cell_velocity;
-        double xip = pow(xi, p_exponent);
-        double xiq = pow((1 - xi * xi), q_exponent);
-
-        fibre_adhesion = this->custom_data["vel_adhesion"] * xip *
-                            (1 - cell_velocity / this->custom_data["cell_velocity_max"]);
-
-        fibre_repulsion = this->custom_data["vel_contact"] * xiq;
-
-        axpy(&(velocity), fibre_adhesion, pFibre->state.orientation);
-        naxpy(&(velocity), fibre_repulsion, previous_velocity);
 
         degrade_fibre(pFibre);
     }

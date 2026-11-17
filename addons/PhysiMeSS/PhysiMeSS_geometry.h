@@ -265,6 +265,72 @@ inline FibreRotation rotate_fibre_about_pivot(
     return result;
 }
 
+/*
+    Effect of a fibre on the velocity of a cell which is within its adhesion
+    distance. `previous_velocity` is the velocity of the cell at the previous
+    mechanics step and xi = |previous_velocity . orientation| / |previous_velocity|
+    measures how much the cell moves along the fibre (1) or across it (0).
+
+    Adhesion: velocity added to the cell, along the fibre and in the direction
+    in which the cell already moves,
+        vel_adhesion * xi * max(0, 1 - |previous_velocity| / velocity_max)
+    The cell is accelerated along the fibre, less and less as its speed
+    approaches velocity_max, and not at all above it.
+*/
+inline std::vector<double> fibre_adhesion_velocity(
+    const std::vector<double>& previous_velocity,
+    const std::vector<double>& orientation,
+    double vel_adhesion,
+    double velocity_max )
+{
+    std::vector<double> adhesion(3, 0.0);
+    const double along_fibre = dot(previous_velocity, orientation);
+    const double speed = std::max(norm(previous_velocity), 1e-8);
+    const double xi = std::fabs(along_fibre) / speed;
+    const double magnitude = vel_adhesion * xi * std::max(0.0, 1 - speed / velocity_max);
+    const double direction = (along_fibre < 0) ? -1.0 : 1.0;
+    for (unsigned int i = 0; i < 3; i++) {
+        adhesion[i] = direction * magnitude * orientation[i];
+    }
+    return adhesion;
+}
+
+/*
+    Contact: coefficient, between 0 and vel_contact, by which a fibre slows down
+    a cell moving across it,
+        vel_contact * (1 - xi^2)
+    (see damp_motility_across_fibre).
+*/
+inline double fibre_contact_damping(
+    const std::vector<double>& previous_velocity,
+    const std::vector<double>& orientation,
+    double vel_contact )
+{
+    const double speed = std::max(norm(previous_velocity), 1e-8);
+    const double xi = std::fabs(dot(previous_velocity, orientation)) / speed;
+    return vel_contact * (1 - xi * xi);
+}
+
+/*
+    Motility vector of a cell slowed down by a fibre: the part of the motility
+    across the fibre is multiplied by (1 - damping), with damping limited to
+    [0, 1]; the part along the fibre is kept.
+*/
+inline std::vector<double> damp_motility_across_fibre(
+    const std::vector<double>& motility,
+    const std::vector<double>& orientation,
+    double damping )
+{
+    const double c = std::min(1.0, std::max(0.0, damping));
+    const double along_fibre = dot(motility, orientation);
+    std::vector<double> damped(3, 0.0);
+    for (unsigned int i = 0; i < 3; i++) {
+        const double parallel = along_fibre * orientation[i];
+        damped[i] = parallel + (1 - c) * (motility[i] - parallel);
+    }
+    return damped;
+}
+
 } // namespace PhysiMeSS_Geometry
 
 #endif

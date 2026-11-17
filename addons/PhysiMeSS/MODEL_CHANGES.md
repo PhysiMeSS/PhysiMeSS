@@ -5,8 +5,8 @@ This file lists every change of behaviour of PhysiMeSS relative to the published
 does to the results. Changes which only reorganise the code are not listed.
 
 Simulations made with this version are **not** expected to reproduce the numbers of version 1.0.1
-when cells push or rotate fibres. Fibre initialisation in 2D, cell-fibre adhesion and fibre
-degradation are unchanged unless stated below.
+when cells push or rotate fibres. Fibre initialisation in 2D and fibre degradation are unchanged unless stated
+below.
 
 The geometry used below is in `PhysiMeSS_geometry.h` and tested in `tests/unit/physimess`
 (`make physimess-tests`).
@@ -153,7 +153,51 @@ always anticlockwise, whatever the side of the fibre and the direction of the ce
   the pivot, or cell moving along the fibre).
 - **Why.** In the intermediate 3D code the function returned before the push in these cases.
 
-## 4. Crosslinks between fibres
+## 4. Effect of fibres on the velocity of a cell
+
+In version 1.0.1, each fibre within the adhesion distance of a cell added to its velocity
+
+    vel_adhesion * xi * (1 - |v| / cell_velocity_max) * u   -   vel_contact * (1 - xi^2) * v
+
+where `v` is the velocity of the cell at the previous mechanics step, `u` the orientation of the
+fibre and `xi = |v . u| / |v|`: an adhesion along the fibre, and a drag when the cell moves
+across it. Three defects are corrected. The first two follow the fix proposed for PhysiCell in
+[MathCancer/PhysiCell#443](https://github.com/MathCancer/PhysiCell/pull/443).
+
+### 4.1 The velocity of a cell between fibres could diverge
+
+- **What.** The adhesion factor `(1 - |v| / cell_velocity_max)` is limited to positive values:
+  above `cell_velocity_max` the adhesion is zero.
+- **What.** The previous velocity is no longer subtracted for each fibre. The strongest contact
+  coefficient `vel_contact * (1 - xi^2)` among the fibres near the cell, limited to [0, 1],
+  multiplies by `(1 - coefficient)` the part of the *motility vector* of the cell which is across
+  that fibre. The part along the fibre is kept.
+- **Why.** Both terms were computed from the previous velocity and added once per fibre, so a
+  variation of the velocity was fed back amplified at the next step: with two parallel fibres and
+  the default `vel_adhesion = 0.6`, by a factor 1.2. Above `cell_velocity_max` the adhesion
+  became negative and grew with the speed.
+- **Effect.** A cell migrating at 2 micron/min into the gap between two parallel fibres moved by
+  up to 118 micron in one minute with the default parameters, and left the domain with
+  `vel_adhesion = 2`, `vel_contact = 1`; it now moves by at most 2.2 micron in one minute. The
+  trajectories of cells in contact with several fibres change (maze, hinge, degradation with
+  motile cells).
+
+### 4.2 The adhesion depended on the sign of the orientation of the fibre
+
+- **What.** The adhesion is along the fibre *in the direction in which the cell moves*:
+  `sign(v . u) * u` instead of `u`.
+- **Why.** `u` and `-u` describe the same fibre, but the adhesion always pushed the cell along
+  `+u`. A cell moving along a fibre in the direction `-u` was slowed down instead of accelerated.
+- **Effect.** A cell migrating at 0.5 micron/min along a single fibre covered 77 micron in 120
+  min in one direction and stayed blocked at the end of the fibre in the other direction; it now
+  covers 80 micron in both. This correction is not in the PhysiCell pull request.
+
+**Remaining limitation.** The adhesion is still computed from the previous velocity and added
+for each fibre. Below `cell_velocity_max` the speed of a cell moving along several fibres can
+alternate from one mechanics step to the next between two values instead of settling; it stays
+bounded by its motility plus `vel_adhesion` times the number of fibres.
+
+## 5. Crosslinks between fibres
 
 The rules are those of version 1.0.1; they are stated here because they limit what the model
 can represent.
@@ -187,7 +231,7 @@ mechanics step. It was only updated when a periodic full save was written, so th
 periodic save was the initial one). The snapshot saved at time zero still holds zero, as the
 crosslinks are first computed at the first mechanics step.
 
-## 5. Mechanics time step
+## 6. Mechanics time step
 
 - **What.** The fibre mechanics (neighbours, crosslinks, rotation) runs every `dt_mechanics`,
   whatever its value.
@@ -195,7 +239,7 @@ crosslinks are first computed at the first mechanics step.
   and fibres did not interact at all.
 - **Note.** PhysiCell itself requires `dt_mechanics` to be a multiple of `dt_diffusion`.
 
-## 6. Robustness
+## 7. Robustness
 
 - A fibre of zero length (the length is drawn from a normal distribution) no longer gives NaN
   for the nearest point: it is treated as a point.
@@ -207,4 +251,4 @@ crosslinks are first computed at the first mechanics step.
 - Fibres named `fibre_vertical` and `fibre_horizontal` have a fixed orientation whatever the
   configuration says (section 1).
 - Crosslinks are contacts recomputed at every step, and fibres with two or more crosslinks do not
-  move (section 4).
+  move (section 5).
