@@ -11,6 +11,9 @@ PhysiMeSS paper is available on Gigabyte : [https://gigabytejournal.com/articles
 
 DOI: [10.46471/gigabyte.136](https://doi.org/10.46471/gigabyte.136).
 
+## 3D version
+The 3D version of PhysiMeSS (fibres initialised, pushed, rotated and degraded in three dimensions, and the 3D examples) is the work of Ambre Jaeger ([@ambrejaeger](https://github.com/ambrejaeger)).
+
 ## Dedicated sample project
 PhysiMeSS comes with a dedicated sample project, called **physimess-sample**. To build it, go to the root directory and use : 
 
